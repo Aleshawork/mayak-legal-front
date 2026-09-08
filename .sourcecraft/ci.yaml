@@ -34,7 +34,7 @@ workflows:
                 npm run build
             artifacts:
               paths:
-                - dist/**
+                - dist
 
       - name: deploy
         needs:
