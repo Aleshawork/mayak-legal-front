@@ -1,69 +1,91 @@
-# Деплой фронта Маяк на свой домен
+# Деплой фронта Маяк на Yandex Cloud
 
-Рекомендуемый путь: **Cloudflare Pages** — бесплатно, HTTPS, CDN, свой домен за несколько минут.
+Рекомендуемый хостинг: **Object Storage** (+ опционально CDN) — доступен из России без VPN.
 
-## 1. Сборка
+Страницы: `/`, `/about`, `/property`, `/build`, `/reports`, `/faq`, `/blog`, `/contacts`, `/legal`, `/pay`, `/privacy`, `/terms`, `/offer`, `/cookie`, плюс `/pricing.md` и `/llms.txt`.
+
+---
+
+## Способ A — SourceCraft CI/CD (рекомендуется)
+
+После push в `main` сайт собирается и заливается в бакет автоматически.
+
+### 1. Бакет Object Storage
+
+1. [Консоль Object Storage](https://console.yandex.cloud) → создать бакет, например `mayak-legal-front`
+2. Включить **хостинг сайта**, главная страница: `index.html`
+3. Публичное чтение объектов
+
+Если имя бакета другое — поменяйте `BUCKET_NAME` в [`.sourcecraft/ci.yaml`](.sourcecraft/ci.yaml).
+
+### 2. Сервисный аккаунт
+
+1. IAM → создать SA, например `mayak-front-deploy`
+2. На каталог: роль `storage.editor` (для заливки файлов)
+
+### 3. Сервисное подключение в SourceCraft
+
+1. Репозиторий → **Настройки** → **Сервисные подключения** → **Новое**
+2. Имя: `default-service-connection` (как в `ci.yaml`)
+3. Укажите каталог и сервисный аккаунт
+
+Инструкция: [сервисные подключения](https://sourcecraft.dev/portal/docs/ru/sourcecraft/operations/service-connections)
+
+### 4. Запуск деплоя
+
+Конфиг уже в репозитории: `.sourcecraft/ci.yaml`.
+
+```bash
+git push origin main
+```
+
+В SourceCraft откройте **CI/CD** и дождитесь успешного workflow `build-and-deploy`.
+
+Сайт: website-URL бакета, например  
+`http://mayak-legal-front.website.yandexcloud.net`
+
+---
+
+## Способ B — ручной деплой с ноутбука
+
+### Сборка
 
 ```bash
 npm install
 npm run build
 ```
 
-Готовая статика лежит в `dist/`.
+Готовая статика: `dist/`.
 
-## 2. Cloudflare Pages (через Git)
-
-1. Залейте репозиторий на GitHub/GitLab.
-2. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Pages** → подключите репозиторий.
-3. Настройки сборки:
-   - **Root directory:** `/` (корень репозитория)
-   - **Build command:** `npm run build`
-   - **Build output directory:** `dist`
-4. Deploy.
-
-### Свой домен `mayak-legal.ru`
-
-1. В проекте Pages → **Custom domains** → Add `mayak-legal.ru` (и при желании `www.mayak-legal.ru`).
-2. Если DNS на Cloudflare — записи создадутся сами.
-3. Если DNS у регистратора — добавьте то, что покажет Cloudflare (обычно CNAME на `*.pages.dev` или их A/AAAA для apex).
-4. Дождитесь выдачи сертификата (обычно несколько минут).
-
-Страницы: `/`, `/about`, `/property`, `/build`, `/reports`, `/faq`, `/blog`, `/contacts`, `/legal`, `/pay`, `/privacy`, `/terms`, `/offer`, `/cookie`, плюс `/pricing.md` и `/llms.txt`.
-
-## 3. Быстрый деплой без Git (Wrangler)
+### Заливка скриптом
 
 ```bash
-npm i -g wrangler
-npm run build
-wrangler pages deploy dist --project-name mayak
+export YC_BUCKET=mayak-legal-front
+export AWS_ACCESS_KEY_ID=...        # статический ключ Object Storage
+export AWS_SECRET_ACCESS_KEY=...
+npm run deploy:yc
 ```
 
-Дальше в панели Pages привяжите домен так же, как выше.
+Нужен AWS CLI: `brew install awscli`.
 
-## 4. Альтернативы
+---
 
-### GitHub Pages
+## HTTPS и домен `mayak-legal.ru`
 
-- Actions: собрать проект → выложить `dist`.
-- Домен: Settings → Pages → Custom domain → `mayak-legal.ru`, у регистратора CNAME на `username.github.io`.
+1. [Certificate Manager](https://console.yandex.cloud) — сертификат для `mayak-legal.ru` и `www`
+2. [CDN](https://console.yandex.cloud) — origin = бакет, подключить сертификат и домен
+3. DNS у регистратора — на CDN (как покажет консоль)
+4. Отключить Cloudflare / Tilda, когда новый сайт стабильно открывается
 
-### Yandex Object Storage + API Gateway
+---
 
-Имеет смысл, если всё держите в Yandex Cloud рядом с бэкендом:
+## (Опционально) API Gateway
 
-1. Залить содержимое `dist/` в бакет (публичное чтение, website hosting).
-2. В API Gateway отдать `/*` из Object Storage (`index.html` для `/` и каталогов).
-3. Привязать домен к шлюзу / Certificate Manager.
+Если API уже на Yandex API Gateway, статику можно отдавать с того же домена из Object Storage через шлюз.
 
-Чуть больше ручной работы, чем Cloudflare Pages.
+---
 
-## 5. DNS после ухода с Tilda
+## Формы
 
-1. Убедитесь, что новый фронт открывается на `*.pages.dev` (или тестовом URL).
-2. Переключите DNS домена на Cloudflare Pages.
-3. Отключите публикацию на Tilda, чтобы не было конфликта.
-
-## 6. Формы
-
-Сейчас формы работают в UI (валидация + «заявка принята»), без отправки на сервер.  
+Сейчас формы только UI (валидация + «заявка принята»), без отправки на сервер.  
 Подключение к API лидов/оплаты — отдельный шаг.

@@ -11,4 +11,4 @@ npm run dev
 
 Сборка: `npm run build` → `dist/`
 
-Деплой: [DEPLOY.md](./DEPLOY.md)
+Деплой на Yandex Cloud / SourceCraft: [DEPLOY.md](./DEPLOY.md)

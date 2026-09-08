@@ -1,0 +1,64 @@
+# CI/CD SourceCraft → Yandex Object Storage
+# Docs: https://sourcecraft.dev/portal/docs/ru/sourcecraft/operations/service-connections
+#
+# Перед первым запуском:
+# 1. Создайте бакет Object Storage (website hosting, index.html, public-read)
+# 2. Создайте сервисный аккаунт с ролью storage.editor на каталог
+# 3. В SourceCraft: Настройки репозитория → Сервисные подключения
+#    Имя подключения должно совпадать с service_connection ниже
+
+on:
+  push:
+    - workflows: build-and-deploy
+      filter:
+        branches:
+          - main
+
+tokens:
+  yc:
+    service_connection: default-service-connection
+    scope: repo
+
+workflows:
+  build-and-deploy:
+    tasks:
+      - name: build
+        cubes:
+          - name: build-site
+            image: node:22
+            script:
+              - |
+                npm ci
+                npm run build
+            artifacts:
+              paths:
+                - dist/**
+
+      - name: deploy
+        needs:
+          - build
+        env:
+          # Замените на имя вашего бакета, если другое
+          BUCKET_NAME: mayak-legal-front
+        cubes:
+          - name: get-iam-token
+            env:
+              ID_TOKEN: ${{ tokens.yc.id_token }}
+              YC_SA_ID: ${{ tokens.yc.service_account_id }}
+            image: cr.yandex/sourcecraft/yc-iam:latest
+
+          - name: upload
+            env:
+              YC_FOLDER_ID: ${{ tokens.yc.folder_id }}
+              YC_IAM_TOKEN: ${{ cubes.get-iam-token.outputs.IAM_TOKEN }}
+            image:
+              name: cr.yandex/sourcecraft/yc-cli:latest
+              entrypoint: ""
+            script:
+              - |
+                set -euo pipefail
+                yc config set folder-id "$YC_FOLDER_ID"
+                test -d dist
+                echo "Upload dist/ → s3://$BUCKET_NAME/"
+                yc storage cp --recursive ./dist/ "s3://$BUCKET_NAME/"
+                echo "Done. Check Object Storage website URL for bucket: $BUCKET_NAME"
