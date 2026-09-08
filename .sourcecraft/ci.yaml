@@ -66,7 +66,7 @@ workflows:
                   const json = Buffer.from(b + pad, "base64").toString("utf8");
                   console.log("=== ID_TOKEN claims ===");
                   console.log(JSON.stringify(JSON.parse(json), null, 2));
-                  console.log("========================");
+                  console.log("========================"a);
                 '
 
           - name: get-iam-token
@@ -85,6 +85,13 @@ workflows:
             script:
               - |
                 set -euo pipefail
+                echo "=== Working directory ==="
+                pwd
+                echo "=== Files in cwd ==="
+                ls -la
+                echo "=== Find dist ==="
+                find . -maxdepth 3 -name dist -type d
+                echo "=== Uploading to Object Storage ==="
                 yc config set folder-id "$YC_FOLDER_ID"
                 test -d dist
                 echo "Upload dist/ → s3://$BUCKET_NAME/"
