@@ -15,7 +15,11 @@ on:
 tokens:
   yc:
     service_connection: mayak-default
-    scope: repo
+    # Область запроса доступа.
+    # Используется ref, чтобы токен содержал привязку к ветке и совпадал
+    # с правилом сопоставления в федерации сервисных аккаунтов Yandex Cloud
+    # (sub вида repo:org/repo:ref:refs/heads/main).
+    scope: ref
 
 workflows:
   build-and-deploy:
