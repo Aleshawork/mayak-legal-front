@@ -38,6 +38,29 @@ workflows:
         env:
           BUCKET_NAME: mayak-legal-front
         cubes:
+          # Диагностический кубик: декодирует JWT (id_token) и выводит claims
+          # iss / sub для сверки с правилами федерации сервисных аккаунтов
+          # в Yandex Cloud (Identity and Access Management).
+          - name: diag-token
+            env:
+              ID_TOKEN: ${{ tokens.yc.id_token }}
+            image: node:22
+            script:
+              - |
+                set -euo pipefail
+                if [ -z "$ID_TOKEN" ]; then
+                  echo "❌ ID_TOKEN is empty"
+                  exit 1
+                fi
+                # Извлекаем payload JWT (вторая часть, разделённая точками).
+                PAYLOAD=$(echo "$ID_TOKEN" | cut -d. -f2)
+                # Декодируем base64url -> обычный base64 и парсим JSON.
+                PADDING=$(( (4 - ${#PAYLOAD} % 4) % 4 ))
+                PADDED="$PAYLOAD$(printf '=%.0s' $(seq 1 $PADDING))"
+                echo "=== ID_TOKEN claims ==="
+                echo "$PADDED" | tr '_-' '/+' | base64 -d 2>/dev/null | jq . || echo "❌ Could not decode JWT payload"
+                echo "========================"
+
           - name: get-iam-token
             env:
               ID_TOKEN: ${{ tokens.yc.id_token }}
