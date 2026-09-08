@@ -1,18 +1,16 @@
 # CI/CD SourceCraft → Yandex Object Storage
-# Docs: https://sourcecraft.dev/portal/docs/ru/sourcecraft/operations/service-connections
+# Docs: https://sourcecraft.dev/portal/docs/ru/sourcecraft/ci-cd-ref/on
 #
 # Перед первым запуском:
-# 1. Создайте бакет Object Storage (website hosting, index.html, public-read)
-# 2. Создайте сервисный аккаунт с ролью storage.editor на каталог
-# 3. В SourceCraft: Настройки репозитория → Сервисные подключения
-#    Имя подключения должно совпадать с service_connection ниже
+# 1. Бакет Object Storage (website hosting, index.html, public-read)
+# 2. Сервисный аккаунт с ролью storage.editor
+# 3. Сервисное подключение в SourceCraft с именем из service_connection ниже
 
 on:
   push:
-    - workflows: build-and-deploy
+    - workflows: [build-and-deploy]
       filter:
-        branches:
-          - main
+        branches: ["main"]
 
 tokens:
   yc:
@@ -38,7 +36,6 @@ workflows:
         needs:
           - build
         env:
-          # Замените на имя вашего бакета, если другое
           BUCKET_NAME: mayak-legal-front
         cubes:
           - name: get-iam-token
