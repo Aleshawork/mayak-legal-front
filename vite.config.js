@@ -1,29 +1,53 @@
 import { defineConfig } from 'vite'
-import { resolve } from 'path'
+import { resolve, join } from 'path'
+import { existsSync } from 'fs'
+
+const pages = [
+  'about', 'property', 'build', 'reports', 'faq', 'blog',
+  'contacts', 'legal', 'pay', 'privacy', 'terms', 'offer', 'cookie'
+]
+
+function mpaSlashless() {
+  const rewrite = (req) => {
+    const raw = req.url || '/'
+    const [pathname, query = ''] = raw.split('?')
+    if (!pathname || pathname === '/' || pathname.includes('.') || pathname.endsWith('/')) return
+    const slug = pathname.replace(/^\/+|\/+$/g, '')
+    if (!pages.includes(slug)) return
+    const indexFile = join(process.cwd(), slug, 'index.html')
+    if (existsSync(indexFile)) {
+      req.url = `/${slug}/${query ? `?${query}` : ''}`
+    }
+  }
+  return {
+    name: 'mpa-slashless',
+    configureServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        rewrite(req)
+        next()
+      })
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        rewrite(req)
+        next()
+      })
+    }
+  }
+}
 
 export default defineConfig({
   appType: 'mpa',
   publicDir: 'public',
+  plugins: [mpaSlashless()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html'),
-        about: resolve(__dirname, 'about/index.html'),
-        property: resolve(__dirname, 'property/index.html'),
-        build: resolve(__dirname, 'build/index.html'),
-        reports: resolve(__dirname, 'reports/index.html'),
-        faq: resolve(__dirname, 'faq/index.html'),
-        blog: resolve(__dirname, 'blog/index.html'),
-        contacts: resolve(__dirname, 'contacts/index.html'),
-        legal: resolve(__dirname, 'legal/index.html'),
-        pay: resolve(__dirname, 'pay/index.html'),
-        privacy: resolve(__dirname, 'privacy/index.html'),
-        terms: resolve(__dirname, 'terms/index.html'),
-        offer: resolve(__dirname, 'offer/index.html'),
-        cookie: resolve(__dirname, 'cookie/index.html')
-      }
+      input: Object.fromEntries([
+        ['main', resolve(__dirname, 'index.html')],
+        ...pages.map((name) => [name, resolve(__dirname, `${name}/index.html`)])
+      ])
     }
   },
   server: { port: 5173 }
