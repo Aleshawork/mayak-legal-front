@@ -47,19 +47,23 @@ workflows:
             image: node:22
             script:
               - |
-                set -euo pipefail
+                set -eu
                 if [ -z "$ID_TOKEN" ]; then
                   echo "❌ ID_TOKEN is empty"
                   exit 1
                 fi
                 # Извлекаем payload JWT (вторая часть, разделённая точками).
                 PAYLOAD=$(echo "$ID_TOKEN" | cut -d. -f2)
-                # Декодируем base64url -> обычный base64 и парсим JSON.
-                PADDING=$(( (4 - ${#PAYLOAD} % 4) % 4 ))
-                PADDED="$PAYLOAD$(printf '=%.0s' $(seq 1 $PADDING))"
-                echo "=== ID_TOKEN claims ==="
-                echo "$PADDED" | tr '_-' '/+' | base64 -d 2>/dev/null | jq . || echo "❌ Could not decode JWT payload"
-                echo "========================"
+                # Декодируем base64url -> обычный base64 и парсим JSON через node.
+                node -e '
+                  const p = process.env.ID_TOKEN.split(".")[1];
+                  const b = p.replace(/-/g, "+").replace(/_/g, "/");
+                  const pad = b.length % 4 === 0 ? "" : "=".repeat(4 - b.length % 4);
+                  const json = Buffer.from(b + pad, "base64").toString("utf8");
+                  console.log("=== ID_TOKEN claims ===");
+                  console.log(JSON.stringify(JSON.parse(json), null, 2));
+                  console.log("========================");
+                '
 
           - name: get-iam-token
             env:
