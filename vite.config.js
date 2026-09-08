@@ -36,10 +36,27 @@ function mpaSlashless() {
   }
 }
 
+// Object Storage website не отдаёт CORS. Vite вешает crossorigin на CSS/JS —
+// браузер тогда не применяет стили (cssRules=0), хотя файл 200 OK.
+function stripAssetCrossorigin() {
+  return {
+    name: 'strip-asset-crossorigin',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html) {
+        return html
+          .replace(/<script([^>]*?)\s+crossorigin(?:="[^"]*")?/g, '<script$1')
+          .replace(/<link([^>]*?rel="stylesheet"[^>]*?)\s+crossorigin(?:="[^"]*")?/g, '<link$1')
+          .replace(/<link([^>]*?)\s+crossorigin(?:="[^"]*")?([^>]*?rel="stylesheet")/g, '<link$1$2')
+      }
+    }
+  }
+}
+
 export default defineConfig({
   appType: 'mpa',
   publicDir: 'public',
-  plugins: [mpaSlashless()],
+  plugins: [mpaSlashless(), stripAssetCrossorigin()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,
