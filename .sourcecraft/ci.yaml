@@ -94,6 +94,8 @@ workflows:
                 echo "=== Uploading to Object Storage ==="
                 yc config set folder-id "$YC_FOLDER_ID"
                 test -d dist
+                echo "--- yc storage s3 --help ---"
+                yc storage s3 --help
                 echo "Upload dist/ → s3://$BUCKET_NAME/"
-                yc storage cp --recursive ./dist/ "s3://$BUCKET_NAME/"
+                yc storage s3 cp --recursive ./dist/ "s3://$BUCKET_NAME/"
                 echo "Done. Check Object Storage website URL for bucket: $BUCKET_NAME"
