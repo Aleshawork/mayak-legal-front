@@ -85,17 +85,31 @@ workflows:
             script:
               - |
                 set -euo pipefail
-                echo "=== Working directory ==="
-                pwd
-                echo "=== Files in cwd ==="
-                ls -la
-                echo "=== Find dist ==="
-                find . -maxdepth 3 -name dist -type d
-                echo "=== Uploading to Object Storage ==="
                 yc config set folder-id "$YC_FOLDER_ID"
                 test -d dist
-                echo "--- yc storage s3 --help ---"
-                yc storage s3 --help
-                echo "Upload dist/ → s3://$BUCKET_NAME/"
-                yc storage s3 cp --recursive ./dist/ "s3://$BUCKET_NAME/"
+                echo "Upload dist/ → s3://$BUCKET_NAME/ (with correct Content-Type)"
+                # yc storage cp без --content-type ставит text/plain → браузер не применяет CSS/JS
+                content_type_for() {
+                  case "$1" in
+                    *.html) echo "text/html; charset=utf-8" ;;
+                    *.css) echo "text/css; charset=utf-8" ;;
+                    *.js|*.mjs) echo "text/javascript; charset=utf-8" ;;
+                    *.svg) echo "image/svg+xml" ;;
+                    *.json) echo "application/json" ;;
+                    *.txt|*.md) echo "text/plain; charset=utf-8" ;;
+                    *.woff) echo "font/woff" ;;
+                    *.woff2) echo "font/woff2" ;;
+                    *.png) echo "image/png" ;;
+                    *.jpg|*.jpeg) echo "image/jpeg" ;;
+                    *.webp) echo "image/webp" ;;
+                    *.ico) echo "image/x-icon" ;;
+                    *) echo "application/octet-stream" ;;
+                  esac
+                }
+                while IFS= read -r -d '' file; do
+                  rel="${file#./dist/}"
+                  ct="$(content_type_for "$rel")"
+                  echo "→ $rel ($ct)"
+                  yc storage s3 cp "$file" "s3://$BUCKET_NAME/$rel" --content-type "$ct"
+                done < <(find ./dist -type f -print0)
                 echo "Done. Check Object Storage website URL for bucket: $BUCKET_NAME"

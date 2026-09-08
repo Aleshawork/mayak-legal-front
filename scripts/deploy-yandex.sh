@@ -22,6 +22,8 @@ echo "==> npm run build"
 npm run build
 
 echo "==> sync dist/ → s3://$BUCKET/"
+# AWS CLI сам выставляет Content-Type по расширению (text/css, text/javascript…).
+# Не используйте «голый» yc storage cp без --content-type — CSS/JS уйдут как text/plain.
 aws s3 sync dist/ "s3://$BUCKET/" \
   --endpoint-url="$ENDPOINT" \
   --acl public-read \
