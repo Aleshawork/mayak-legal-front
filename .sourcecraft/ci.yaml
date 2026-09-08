@@ -14,7 +14,7 @@ on:
 
 tokens:
   yc:
-    service_connection: default-service-connection
+    service_connection: mayak-default
     scope: repo
 
 workflows:

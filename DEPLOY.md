@@ -26,7 +26,7 @@
 ### 3. Сервисное подключение в SourceCraft
 
 1. Репозиторий → **Настройки** → **Сервисные подключения** → **Новое**
-2. Имя: `default-service-connection` (как в `ci.yaml`)
+2. Имя: `mayak-default` (как в `ci.yaml`)
 3. Укажите каталог и сервисный аккаунт
 
 Инструкция: [сервисные подключения](https://sourcecraft.dev/portal/docs/ru/sourcecraft/operations/service-connections)
