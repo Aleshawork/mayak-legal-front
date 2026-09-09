@@ -4,7 +4,8 @@ import { existsSync } from 'fs'
 
 const pages = [
   'about', 'property', 'build', 'reports', 'faq', 'blog',
-  'contacts', 'legal', 'pay', 'privacy', 'terms', 'offer', 'cookie'
+  'contacts', 'legal', 'pay', 'privacy', 'terms', 'offer', 'cookie',
+  'payment/result'
 ]
 
 function mpaSlashless() {
@@ -63,7 +64,10 @@ export default defineConfig({
     rollupOptions: {
       input: Object.fromEntries([
         ['main', resolve(__dirname, 'index.html')],
-        ...pages.map((name) => [name, resolve(__dirname, `${name}/index.html`)])
+        ...pages.map((name) => [
+          name.replace(/\//g, '-'),
+          resolve(__dirname, `${name}/index.html`)
+        ])
       ])
     }
   },
