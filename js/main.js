@@ -380,6 +380,10 @@
 
   /* ============ ФОРМЫ ============ */
   var MAIL=/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  var ESTATE_API='https://d5d7m3j4ab9b3r18lbml.uvah0e6r.apigw.yandexcloud.net';
+  var OBJECT_CHECK_AMOUNT=3000;
+  var currentFormKey=null;
+
   function fields(f){ return Array.prototype.slice.call(f.querySelectorAll('[data-req],[data-one]')); }
   function filled(el){ if(el.type==='file') return el.files.length>0; if(el.type==='checkbox') return el.checked; return el.value.trim().length>0; }
   function markBad(el,bad){ var w=el.closest('.field'); if(w) w.classList.toggle('bad',bad); }
@@ -429,12 +433,211 @@
     if(e.target.closest('.agree')) e.target.closest('.agree').classList.remove('bad');
     refresh(f);
   });
+
+  function guessContentType(file){
+    if(file.type) return file.type;
+    var n=(file.name||'').toLowerCase();
+    if(n.endsWith('.pdf')) return 'application/pdf';
+    if(n.endsWith('.png')) return 'image/png';
+    if(n.endsWith('.jpg')||n.endsWith('.jpeg')) return 'image/jpeg';
+    if(n.endsWith('.doc')) return 'application/msword';
+    if(n.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if(n.endsWith('.txt')) return 'text/plain';
+    return 'application/octet-stream';
+  }
+
+  function apiJson(path, opts){
+    opts=opts||{};
+    var headers={};
+    if(opts.body) headers['Content-Type']='application/json';
+    return fetch(ESTATE_API+path, {
+      method: opts.method||'GET',
+      headers: headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    }).then(function(res){
+      return res.text().then(function(text){
+        var data=null;
+        try{ data=text ? JSON.parse(text) : null; }catch(err){ data={ raw:text }; }
+        if(!res.ok){
+          var msg=(data&&(data.message||data.error||data.detail))||('Ошибка API '+res.status);
+          throw new Error(typeof msg==='string'?msg:JSON.stringify(msg));
+        }
+        return data||{};
+      });
+    });
+  }
+
+  function putPresigned(url, file, contentType){
+    // Подпись URL включает content-type + host. Шлём только Content-Type —
+    // тот же, что передали в /api/upload-url. Лишние заголовки / смена метода = SignatureDoesNotMatch.
+    return fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      body: file,
+      redirect: 'error'
+    }).then(function(putRes){
+      if(putRes.ok) return putRes;
+      return putRes.text().then(function(text){
+        var hint='Не удалось загрузить файл в хранилище ('+putRes.status+')';
+        if(text&&text.indexOf('SignatureDoesNotMatch')!==-1){
+          hint+='. Подпись не совпала: нужен PUT и Content-Type ровно как при создании URL (сейчас: '+contentType+'). Не открывайте URL в браузере — это GET.';
+        }
+        throw new Error(hint);
+      });
+    });
+  }
+
+  // После /api/start ссылки ещё нет — норма. Ждём confirmation_url / payment_status в /api/status.
+  // ~50×2.5с ≈ 2 мин: старт workflow + ЮKassa + запись в YDB.
+  function waitForPayment(caseId, setBusy){
+    var attempts=0, maxAttempts=50, delayMs=2500;
+    function once(){
+      attempts++;
+      setBusy(true, 'Ждём ссылку на оплату… ('+attempts+'/'+maxAttempts+')');
+      return apiJson('/api/status?case_id='+encodeURIComponent(caseId), {method:'GET'}).then(function(st){
+        var payStatus=st.payment_status==null ? null : String(st.payment_status).toLowerCase();
+        var url=typeof st.confirmation_url==='string' ? st.confirmation_url : '';
+
+        if(payStatus==='succeeded'){
+          return { action:'paid' };
+        }
+        if(payStatus==='canceled'||payStatus==='cancelled'){
+          throw new Error('Платёж отменён. Попробуйте оформить заявку ещё раз.');
+        }
+        // pending / null + confirmation_url → редирект на ЮKassa
+        if(url && (payStatus==='pending' || payStatus===null)){
+          return { action:'pay', url:url };
+        }
+        // pending без URL или null (воркфлоу ещё не дошёл до создания платежа) — продолжаем
+        if(payStatus==='pending' || payStatus===null){
+          if(attempts>=maxAttempts){
+            if(payStatus===null && !url){
+              throw new Error('Произошла ошибка при создании оплаты. Попробуйте позже или напишите на sales@mayak-legal.ru');
+            }
+            throw new Error('Не получили ссылку на оплату вовремя. Попробуйте позже или напишите на sales@mayak-legal.ru');
+          }
+          return new Promise(function(resolve){ setTimeout(resolve, delayMs); }).then(once);
+        }
+
+        // неизвестный статус — если есть URL, всё равно ведём на оплату
+        if(url) return { action:'pay', url:url };
+        if(attempts>=maxAttempts){
+          throw new Error('Произошла ошибка при создании оплаты. Попробуйте позже или напишите на sales@mayak-legal.ru');
+        }
+        return new Promise(function(resolve){ setTimeout(resolve, delayMs); }).then(once);
+      });
+    }
+    return once();
+  }
+
+  function runObjectCheck(form){
+    var email=(form.querySelector('[name="email"]')||{}).value||'';
+    email=email.trim();
+    var kad=((form.querySelector('[name="kad"]')||{}).value||'').trim();
+    var addr=((form.querySelector('[name="addr"]')||{}).value||'').trim();
+    var fileInput=form.querySelector('[name="docs"]');
+    var files=fileInput&&fileInput.files ? Array.prototype.slice.call(fileInput.files) : [];
+    var amountEl=form.querySelector('[name="amount"]');
+    var amount=amountEl ? Number(amountEl.value) : OBJECT_CHECK_AMOUNT;
+    if(!amount||amount<=0) amount=OBJECT_CHECK_AMOUNT;
+
+    var btn=form.querySelector('.submit');
+    var prevHtml=btn ? btn.innerHTML : '';
+    function setBusy(on, label){
+      if(!btn) return;
+      btn.disabled=!!on;
+      btn.classList.toggle('off', !!on || !check(form,false));
+      if(on) btn.textContent=label||'Отправляем…';
+      else btn.innerHTML=prevHtml;
+    }
+
+    setBusy(true, 'Создаём заявку…');
+    return apiJson('/api/case', {method:'POST'}).then(function(caseData){
+      var caseId=caseData.case_id;
+      if(!caseId) throw new Error('API не вернул case_id');
+      setBusy(true, 'Готовим загрузку…');
+
+      var uploadList=files.slice();
+      if(!uploadList.length){
+        var text='Проверка объекта недвижимости\n'+
+          'Кадастровый номер: '+(kad||'—')+'\n'+
+          'Адрес: '+(addr||'—')+'\n'+
+          'Почта: '+email+'\n';
+        uploadList=[new File([text], 'application.txt', {type:'text/plain'})];
+      }
+
+      var registered=[];
+      var chain=Promise.resolve();
+      uploadList.forEach(function(file){
+        chain=chain.then(function(){
+          var contentType=guessContentType(file);
+          setBusy(true, 'Загружаем '+file.name+'…');
+          return apiJson('/api/upload-url', {
+            method:'POST',
+            body:{ case_id:caseId, filename:file.name, content_type:contentType }
+          }).then(function(up){
+            if(!up.url||!up.object_key||!up.doc_id) throw new Error('Некорректный ответ /api/upload-url');
+            // content_type из ответа бэка, если есть — иначе тот же, что отправили
+            var putType=up.content_type||contentType;
+            return putPresigned(up.url, file, putType).then(function(){
+              registered.push({
+                doc_id: up.doc_id,
+                object_key: up.object_key,
+                filename: file.name,
+                content_type: putType
+              });
+            });
+          });
+        });
+      });
+
+      return chain.then(function(){
+        setBusy(true, 'Регистрируем документы…');
+        return apiJson('/api/commit', {
+          method:'POST',
+          body:{ case_id:caseId, docs:registered }
+        });
+      }).then(function(){
+        setBusy(true, 'Запускаем оплату…');
+        // /api/start только стартует workflow — confirmation_url в ответе не ждём
+        return apiJson('/api/start', {
+          method:'POST',
+          body:{
+            case_id: caseId,
+            amount: amount,
+            recipient: email
+          }
+        });
+      }).then(function(){
+        return waitForPayment(caseId, setBusy);
+      }).then(function(result){
+        if(result&&result.action==='paid'){
+          window.location.href='/payment/result/';
+          return;
+        }
+        if(result&&result.action==='pay'&&result.url){
+          window.location.href=result.url;
+          return;
+        }
+        throw new Error('Произошла ошибка при создании оплаты. Попробуйте позже или напишите на sales@mayak-legal.ru');
+      });
+    }).catch(function(err){
+      setBusy(false);
+      var msg=(err&&err.message)||'Не удалось отправить заявку';
+      alert(msg+'\n\nПопробуйте ещё раз или напишите на sales@mayak-legal.ru');
+    });
+  }
+
   document.addEventListener('submit',function(e){
     var f=e.target.closest('.mk-form'); if(!f) return;
     e.preventDefault();
     if(!check(f,true)){
       var bad=f.querySelector('.field.bad input,.field.bad textarea,.field.bad select');
       if(bad) bad.focus(); else { var ag=f.querySelector('.agree.bad'); if(ag) ag.scrollIntoView({block:'center',behavior:REDUCE?'auto':'smooth'}); }
+      return;
+    }
+    if(currentFormKey==='object'){
+      runObjectCheck(f);
       return;
     }
     f.classList.add('sent');
@@ -452,12 +655,13 @@
     ad:{t:'Проверка объявления',s:'',
       f:[{n:'link',l:'Ссылка на объявление',ph:'cian.ru/sale/flat/…',req:1,e:'Вставьте ссылку на объявление'},MAILFIELD],
       d:'Заключение придёт на указанную почту до 2 часов.'},
-    object:{t:'Проверка объекта недвижимости',s:'Заполните хотя бы одно поле об объекте — кадастровый номер, адрес или документы.',
+    object:{t:'Проверка объекта недвижимости',s:'Заполните хотя бы одно поле об объекте — кадастровый номер, адрес или документы. После отправки откроется оплата через ЮKassa.',
       f:[{n:'kad',l:'Кадастровый номер',ph:'77:06:0004008:1234',one:'obj'},
          {n:'addr',l:'Адрес объекта',ph:'Москва, Профсоюзная ул., 43к2, кв. 118',one:'obj'},
          {n:'docs',l:'Документы по объекту',ty:'file',one:'obj',hint:'Выписка ЕГРН, договор, техплан — pdf, jpg, doc',e:'Заполните хотя бы одно из трёх полей выше'},
+         {n:'amount',l:'Стоимость услуги',ty:'amount',value:OBJECT_CHECK_AMOUNT,display:'3 000 ₽'},
          MAILFIELD],
-      d:'Отчёт по объекту придёт на указанную почту до 3 часов.'},
+      d:'После оплаты отчёт по объекту придёт на указанную почту до 3 часов.'},
     seller:{t:'Проверка продавца',s:'Опишите продавца так, как он указан в документах, и приложите то, что есть на руках.',
       f:[{n:'seller',l:'Данные о продавце',ty:'textarea',ph:'ФИО, дата рождения, что известно: собственник, доверенное лицо, наследник…',req:1,e:'Опишите продавца — без этого проверять нечего'},
          {n:'docs',l:'Документы продавца',ty:'file',hint:'Паспортные данные из договора, доверенность, выписка — необязательно'},
@@ -496,6 +700,7 @@
     if(x.ty==='textarea') inner='<textarea id="'+id+'" name="'+x.n+'" placeholder="'+(x.ph||'')+'"'+req+one+'></textarea>';
     else if(x.ty==='select') inner='<select id="'+id+'" name="'+x.n+'"'+req+one+'>'+x.opts.map(function(o){return '<option>'+o+'</option>';}).join('')+'</select>';
     else if(x.ty==='file') inner='<label class="filebox" for="'+id+'"><span class="clip"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M11 4.5 5.8 9.7a2 2 0 1 0 2.8 2.8l5.4-5.4a3.4 3.4 0 0 0-4.8-4.8L3.6 8a4.8 4.8 0 0 0 6.8 6.8l4.4-4.4" stroke="#164C68" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg></span><span class="fname">Выберите файлы</span><input id="'+id+'" name="'+x.n+'" type="file" multiple'+req+one+'></label>';
+    else if(x.ty==='amount') inner='<input id="'+id+'" type="hidden" name="amount" value="'+(x.value||'')+'"><div class="price-line" style="margin:0;font-size:16px">К оплате: <b>'+(x.display||(x.value+' ₽'))+'</b></div>';
     else inner='<input id="'+id+'" name="'+x.n+'" type="'+(x.ty||'text')+'" placeholder="'+(x.ph||'')+'"'+req+one+mail+'>';
     return '<div class="field"><label for="'+id+'">'+x.l+'</label>'+inner+
       (x.hint?'<span class="hint">'+x.hint+'</span>':'')+
@@ -507,6 +712,7 @@
   var lastFocus=null;
   function openForm(key,svc){
     var cfg=FORMS[key]; if(!cfg||!modal) return;
+    currentFormKey=key;
     lastFocus=document.activeElement;
     mForm.classList.remove('sent');
     mTitle.textContent=cfg.t;
@@ -523,6 +729,7 @@
   function closeForm(){
     if(!modal) return;
     document.body.classList.remove('modal-open'); modal.setAttribute('aria-hidden','true');
+    currentFormKey=null;
     if(lastFocus&&lastFocus.focus) lastFocus.focus();
   }
   document.addEventListener('click',function(e){
