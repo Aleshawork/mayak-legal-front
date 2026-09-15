@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /checkout
+Disallow: /checkout/
+Disallow: /payment/result
+Disallow: /payment/result/
+Disallow: /account
+Disallow: /account/
+Disallow: /404
+Disallow: /404/
+
+Sitemap: https://mayak-legal.ru/sitemap.xml

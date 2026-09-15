@@ -3,9 +3,9 @@ import { resolve, join } from 'path'
 import { existsSync } from 'fs'
 
 const pages = [
-  'about', 'property', 'build', 'reports', 'faq', 'blog',
+  'about', 'property', 'build', 'realtors', 'reports', 'faq', 'blog',
   'contacts', 'legal', 'pay', 'privacy', 'terms', 'offer', 'cookie',
-  'payment/result'
+  'account', 'checkout', 'unsubscribe', 'payment/result', '404'
 ]
 
 function mpaSlashless() {

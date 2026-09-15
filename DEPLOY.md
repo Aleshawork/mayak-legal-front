@@ -2,7 +2,7 @@
 
 Рекомендуемый хостинг: **Object Storage** (+ опционально CDN) — доступен из России без VPN.
 
-Страницы: `/`, `/about`, `/property`, `/build`, `/reports`, `/faq`, `/blog`, `/contacts`, `/legal`, `/pay`, `/payment/result` (return_url ЮKassa), `/privacy`, `/terms`, `/offer`, `/cookie`, плюс `/pricing.md` и `/llms.txt`.
+Страницы: `/`, `/about`, `/property`, `/build`, `/realtors`, `/reports`, `/faq`, `/blog`, `/contacts`, `/legal`, `/pay`, `/account`, `/checkout`, `/unsubscribe`, `/payment/result` (return_url ЮKassa), `/privacy`, `/terms`, `/offer`, `/cookie`, `/404`, плюс `/pricing.md` и `/llms.txt`.
 
 ---
 
