@@ -12,7 +12,7 @@
 
 ### 1. Бакет Object Storage
 
-1. [Консоль Object Storage](https://console.yandex.cloud) → создать бакет, например `mayak-legal-front`
+1. [Консоль Object Storage](https://console.yandex.cloud) → создать бакет `www.mayak-legal.ru`
 2. Включить **хостинг сайта**, главная страница: `index.html`
 3. Публичное чтение объектов
 
@@ -42,7 +42,7 @@ git push origin main
 В SourceCraft откройте **CI/CD** и дождитесь успешного workflow `build-and-deploy`.
 
 Сайт: website-URL бакета, например  
-`http://mayak-legal-front.website.yandexcloud.net`
+`http://www.mayak-legal.ru.website.yandexcloud.net`
 
 ---
 
@@ -60,7 +60,7 @@ npm run build
 ### Заливка скриптом
 
 ```bash
-export YC_BUCKET=mayak-legal-front
+export YC_BUCKET=www.mayak-legal.ru
 export AWS_ACCESS_KEY_ID=...        # статический ключ Object Storage
 export AWS_SECRET_ACCESS_KEY=...
 npm run deploy:yc

@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-BUCKET="${YC_BUCKET:-mayak-legal-front}"
+BUCKET="${YC_BUCKET:-www.mayak-legal.ru}"
 ENDPOINT="${YC_ENDPOINT:-https://storage.yandexcloud.net}"
 
 if [[ -z "${AWS_ACCESS_KEY_ID:-}" || -z "${AWS_SECRET_ACCESS_KEY:-}" ]]; then

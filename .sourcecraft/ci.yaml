@@ -40,7 +40,7 @@ workflows:
         needs:
           - build
         env:
-          BUCKET_NAME: mayak-legal-front
+          BUCKET_NAME: www.mayak-legal.ru
         cubes:
           # Диагностический кубик: декодирует JWT (id_token) и выводит claims
           # iss / sub для сверки с правилами федерации сервисных аккаунтов
