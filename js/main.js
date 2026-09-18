@@ -561,6 +561,9 @@ function openForm(kind,key){
   var needSurvey=(kind==='svc'&&['obj-fast','obj-deep','obj-full','deal','deal-all','land'].indexOf(key)>=0)
                  ||kind==='sub';
   document.getElementById('fmFields').innerHTML=cfg.f.map(fieldHtml).join('')+deliveryHtml('f');
+  var mkKn=''; try{ mkKn=sessionStorage.getItem('mayak-kn')||''; }catch(x){}
+  if(mkKn){ var mkKf=document.getElementById('fmFields').querySelector('[name="kad"]');
+            if(mkKf&&!mkKf.value) mkKf.value=mkKn; }
   document.getElementById('fmSurvey').innerHTML=needSurvey?surveyHtml():'';
   if(needSurvey) svState={};
   document.getElementById('fmAgrees').innerHTML=agreesHtml();
@@ -624,6 +627,155 @@ function apiJson(path, opts){
     });
   });
 }
+/* ============ БЕСПЛАТНЫЙ РАЗБОР ОБЪЯВЛЕНИЯ ============ */
+/* Приём ссылки, опрос статуса и показ готового отчёта. Контракт, коды ответов и
+   поведение описаны в документе «Сервис разбора объявлений». Ссылка на отчёт
+   открывается обычной ссылкой в новой вкладке: это presigned-адрес хранилища,
+   скриптом его не забрать, а всплывающее окно браузер заблокирует — с момента
+   нажатия проходят минуты. */
+var AD_HOSTS=['avito.ru','cian.ru','domclick.ru','realty.yandex.ru','realty.ya.ru'];
+var AD_POLL_MS=5000, AD_GIVEUP_MS=5*60*1000;
+var AD_TXT={
+  badUrl:'Похоже, это не ссылка. Скопируйте адрес объявления целиком.',
+  badHost:'Мы разбираем объявления с Авито, Циан, Домклик и Яндекс Недвижимости. Пришлите ссылку с одной из этих площадок.',
+  badEmail:'Проверьте адрес почты — кажется, в нём опечатка.',
+  often:'Сейчас слишком много запросов. Подождите минуту и отправьте ссылку ещё раз.',
+  net:'Не получилось связаться с сервисом. Проверьте интернет и попробуйте ещё раз.',
+  lost:'Заявка не найдена. Отправьте ссылку на объявление заново.',
+  slow:'Разбор занимает больше обычного. Попробуйте обновить страницу через несколько минут или пришлите ссылку ещё раз.',
+  wait:'Читаем объявление и фотографии'
+};
+function adHost(raw){
+  try{
+    var u=new URL(String(raw).trim());
+    if(u.protocol!=='http:'&&u.protocol!=='https:') return null;
+    return u.hostname.toLowerCase().replace(/^www\./,'');
+  }catch(x){ return null; }
+}
+function adSupported(raw){
+  var h=adHost(raw); if(!h) return false;
+  for(var i=0;i<AD_HOSTS.length;i++){
+    if(h===AD_HOSTS[i]||h.slice(-(AD_HOSTS[i].length+1))==='.'+AD_HOSTS[i]) return true;
+  }
+  return false;
+}
+/* Ответ нужен целиком: у кода 429 два разных смысла — дневной лимит клиента и
+   общий лимит сервиса, — и различить их можно только по телу. */
+function adApi(path,opts){
+  opts=opts||{};
+  var headers={};
+  if(opts.body) headers['Content-Type']='application/json';
+  return fetch(ESTATE_API+path,{
+    method:opts.method||'GET', headers:headers,
+    body:opts.body?JSON.stringify(opts.body):undefined
+  }).then(function(res){
+    return res.text().then(function(text){
+      var data=null;
+      try{ data=text?JSON.parse(text):{}; }catch(err){ data={}; }
+      return {status:res.status,data:data||{}};
+    });
+  });
+}
+function adError(res){
+  var d=res.data||{};
+  if(res.status===429) return (d.error==='daily_limit'&&d.message)?d.message:AD_TXT.often;
+  if(d.error==='host_not_allowed') return AD_TXT.badHost;
+  if(d.error==='bad_url') return AD_TXT.badUrl;
+  if(d.error==='bad_email') return AD_TXT.badEmail;
+  return d.message||AD_TXT.net;
+}
+function adPoll(id,onTick){
+  var started=Date.now();
+  return new Promise(function(resolve,reject){
+    (function tick(){
+      if(Date.now()-started>AD_GIVEUP_MS){ reject(new Error(AD_TXT.slow)); return; }
+      adApi('/api/listing-status?listing_id='+encodeURIComponent(id)).then(function(res){
+        var d=res.data;
+        if(res.status===404){ reject(new Error(AD_TXT.lost)); return; }
+        /* 503 — не отказ по заявке, а недоступное хранилище статусов: ждём дальше */
+        if(res.status>=500||d.error==='db_unavailable'){ setTimeout(tick,AD_POLL_MS); return; }
+        if(res.status>=400){ reject(new Error(d.message||AD_TXT.net)); return; }
+        if(d.status==='DONE'&&d.report_url){ resolve(d.report_url); return; }
+        if(d.status==='FAILED'){ reject(new Error(d.message||'Объявление недоступно: похоже, оно снято с публикации.')); return; }
+        if(onTick) onTick(Math.round((Date.now()-started)/1000));
+        setTimeout(tick,AD_POLL_MS);
+      }).catch(function(){ setTimeout(tick,AD_POLL_MS); });
+    })();
+  });
+}
+function adDone(f,reportUrl,ageSec,rerun){
+  var box=f.querySelector('.form-done'); if(!box) return;
+  var when='';
+  if(ageSec){
+    var d=new Date(Date.now()-ageSec*1000);
+    when=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+  }
+  box.innerHTML='<h4>Разбор готов</h4>'+
+    (when?'<p class="small">Это объявление уже разбиралось сегодня. Показываем разбор от '+when+'.</p>':'')+
+    '<p><a class="btn b-amber" href="'+esc(reportUrl)+'" target="_blank" rel="noopener">Открыть разбор объявления</a></p>'+
+    (when?'<p><button class="btn b2" type="button" data-ad-again>Проверить заново</button></p>':'');
+  f.classList.add('sent');
+  var again=box.querySelector('[data-ad-again]');
+  if(again) again.addEventListener('click',function(){ f.classList.remove('sent'); rerun(true); });
+}
+function adFail(f,msg){
+  var box=f.querySelector('.form-done'); if(!box){ alert(msg); return; }
+  box.innerHTML='<h4>Не получилось</h4><p class="small">'+esc(msg)+'</p>';
+  f.classList.add('sent');
+}
+function adRun(f,url,email,force){
+  var btn=f.querySelector('.submit'), prev=btn?btn.innerHTML:'';
+  function busy(on,label){
+    if(!btn) return;
+    btn.disabled=!!on; btn.classList.toggle('off',!!on);
+    if(on) btn.textContent=label||AD_TXT.wait; else btn.innerHTML=prev;
+  }
+  function rerun(fc){ adRun(f,url,email,fc); }
+  function finish(reportUrl,age){ busy(false); adDone(f,reportUrl,age,rerun); }
+  function fail(msg){ busy(false); adFail(f,msg); }
+  function wait(id){
+    adPoll(id,function(sec){ busy(true,AD_TXT.wait+(sec>20?' · '+sec+' с':'…')); })
+      .then(function(u){ finish(u,0); })
+      .catch(function(e){ fail((e&&e.message)||AD_TXT.net); });
+  }
+
+  if(!adSupported(url)){ adFail(f,adHost(url)?AD_TXT.badHost:AD_TXT.badUrl); return; }
+  busy(true,AD_TXT.wait+'…');
+  var body={url:url};
+  if(email) body.email=email;
+  if(force) body.force=true;
+  adApi('/api/listing',{method:'POST',body:body}).then(function(res){
+    if(res.status>=400||res.data.error){ fail(adError(res)); return; }
+    var id=res.data.listing_id;
+    if(!id){ fail(AD_TXT.net); return; }
+    /* Готовый свежий разбор приходит сразу: только у него есть возраст. */
+    if(res.data.reused&&typeof res.data.report_age_sec==='number'){
+      var age=res.data.report_age_sec;
+      adApi('/api/listing-status?listing_id='+encodeURIComponent(id)).then(function(st){
+        if(st.data.status==='DONE'&&st.data.report_url) finish(st.data.report_url,age);
+        else wait(id);
+      }).catch(function(){ wait(id); });
+      return;
+    }
+    wait(id);
+  }).catch(function(){ fail(AD_TXT.net); });
+}
+/* Из готового отчёта человек приходит на страницу со ссылкой вида ?kn=…&ref=…
+   Номер подставляется в форму платной проверки, метка нужна для подсчёта
+   конверсии из бесплатного разбора. */
+function adRef(){ try{ return localStorage.getItem('mayak_ref')||''; }catch(x){ return ''; } }
+function adFromQuery(){
+  var q;
+  try{ q=new URLSearchParams(location.search||''); }catch(x){ return; }
+  var ref=q.get('ref');
+  if(ref){ try{ localStorage.setItem('mayak_ref',ref); }catch(x){} }
+  var kn=q.get('kn');
+  if(!kn) return;
+  try{ sessionStorage.setItem('mayak-kn',kn); }catch(x){}
+  var hook=document.querySelector('[data-form="svc"][data-svc="obj-fast"]');
+  if(hook&&hook.scrollIntoView) hook.scrollIntoView({block:'center',behavior:REDUCE?'auto':'smooth'});
+}
+
 function putPresigned(url, file, contentType){
   return fetch(url, {
     method: 'PUT',
@@ -741,6 +893,7 @@ function sendForm(f,extra){
     Object.keys(extra||{}).forEach(function(k){ fd.append(k,extra[k]); });
     if(Object.keys(svState).length) fd.append('anketa',JSON.stringify(svState));
     fd.append('page',location.pathname);
+    var mkRef=adRef(); if(mkRef) fd.append('ref',mkRef);
     fetch(SEND_TO,{method:'POST',body:fd});
   }catch(x){}
 }
@@ -754,6 +907,13 @@ document.addEventListener('submit',function(e){
     return;
   }
   var id=f.id;
+  /* Бесплатный разбор объявления: своя цепочка, без заявки и оплаты. */
+  if(id==='formAd'||(id==='mForm'&&pending&&pending.kind==='svc'&&pending.key==='ad')){
+    var adLink=((f.querySelector('[name="link"]')||{}).value||'').trim();
+    var adMail=((f.querySelector('[name="email"]')||{}).value||'').trim();
+    adRun(f,adLink,adMail,false);
+    return;
+  }
   if(id==='mForm'&&pending){
     var dl=f.querySelector('[name="delivery"]:checked');
     if(pending.kind==='pack'&&packRef){
@@ -1010,4 +1170,5 @@ document.addEventListener('click',function(e){
 });
 flashIn();
 init(here());
+adFromQuery();
 })();
