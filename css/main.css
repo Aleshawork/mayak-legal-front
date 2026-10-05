@@ -1018,3 +1018,18 @@ footer.foot .foot-nav a:hover{color:var(--beam2)}
 
 #fmS{margin-bottom:14px}
 .fm-s1 .fm-t:first-child{margin-top:4px}
+
+/* ============ ПРОВЕРКА ОБЪЕКТА: ТИП СДЕЛКИ И ПРОДАВЦА ============ */
+.dd-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.dd-chip{position:relative;display:inline-flex;align-items:center;padding:9px 13px;border-radius:11px;background:var(--bg);
+  box-shadow:inset 0 0 0 1px var(--hair);font-size:13.5px;color:var(--ink2);cursor:pointer;margin:0;line-height:1.3}
+.dd-chip input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.dd-chip:hover{box-shadow:inset 0 0 0 1.5px var(--sea)}
+.dd-chip:has(input:checked){background:var(--deep);color:#fff;box-shadow:none}
+.dd-chip:has(input:focus-visible){box-shadow:0 0 0 3px var(--wash),inset 0 0 0 1.5px var(--beam)}
+.dd-chip.dd-unk{color:var(--faint)}
+.dd-chip.dd-unk:has(input:checked){color:#fff}
+.field.bad .dd-chips{border-radius:12px;box-shadow:0 0 0 4px var(--redw)}
+.agree.dd-share{margin:2px 0 18px}
+.dd-warrant{margin:-2px 0 4px 32px;font-size:12.2px;line-height:1.5;color:var(--faint)}
+.dd-sv-msg .survey-h{cursor:default}
