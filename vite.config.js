@@ -54,10 +54,24 @@ function stripAssetCrossorigin() {
   }
 }
 
+
+// Хранилище Yandex отдаёт сайт и по http без перенаправления — браузер пишет «Не защищено».
+// Первой строкой каждой страницы переводим посетителя на https (локальную разработку не трогаем).
+function forceHttps() {
+  const snippet = "<script>if(location.protocol==='http:'&&!/^(localhost|127\\.0\\.0\\.1)$/.test(location.hostname))location.replace('https://'+location.host+location.pathname+location.search+location.hash)</script>"
+  return {
+    name: 'force-https',
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) { return html.replace(/<head>/i, '<head>\n  ' + snippet) }
+    }
+  }
+}
+
 export default defineConfig({
   appType: 'mpa',
   publicDir: 'public',
-  plugins: [mpaSlashless(), stripAssetCrossorigin()],
+  plugins: [forceHttps(), mpaSlashless(), stripAssetCrossorigin()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,

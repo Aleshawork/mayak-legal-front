@@ -1033,3 +1033,53 @@ footer.foot .foot-nav a:hover{color:var(--beam2)}
 .agree.dd-share{margin:2px 0 18px}
 .dd-warrant{margin:-2px 0 4px 32px;font-size:12.2px;line-height:1.5;color:var(--faint)}
 .dd-sv-msg .survey-h{cursor:default}
+
+/* ============ ОКНО С ТРЕМЯ ВАРИАНТАМИ УСЛУГИ ============ */
+.modal.tiers-modal .modal-in{max-width:1080px}
+/* четыре строки на каждый вариант: шапка, «что входит», «не входит», кнопка — выровнены по всем трём колонкам */
+.tiers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:auto auto auto auto;column-gap:14px;margin-top:8px}
+.tier{display:grid;grid-row:span 4;grid-template-rows:subgrid;row-gap:14px;background:var(--bg);border-radius:16px;
+  padding:16px 16px 18px;box-shadow:inset 0 0 0 1px var(--hair)}
+.tier.best{background:var(--wash);box-shadow:inset 0 0 0 1.8px var(--beam)}
+.tier-head{position:relative;background:var(--core);border-radius:12px;padding:14px 14px 12px;box-shadow:inset 0 0 0 1.4px rgba(13,59,84,.18)}
+.tier.best .tier-head{box-shadow:inset 0 0 0 1.8px var(--beam)}
+.tier-badge{position:absolute;top:-12px;left:12px;padding:4px 10px;border-radius:8px;background:var(--beam);
+  color:#25190A;font-size:12px;font-weight:700;letter-spacing:.01em}
+.tier-n{font-size:19px;font-weight:700;color:var(--ink);letter-spacing:-.012em}
+.tier-p{font-size:26px;font-weight:700;color:var(--deep);margin-top:2px;letter-spacing:-.02em}
+.tier-t{font-size:13.6px;font-weight:600;color:var(--beam2);margin-top:2px}
+.tier-sec .fm-t{margin-top:0}
+.tier .fm-in,.tier .fm-out{font-size:13.8px;margin-bottom:0}
+.tier-go{align-self:end;justify-content:center;width:100%}
+@media (max-width:860px){.tiers{grid-template-columns:1fr;grid-template-rows:none;row-gap:22px}
+  .tier{grid-row:auto;display:flex;flex-direction:column}}
+.sinc-more{margin-top:9px;padding:8px 0 0;border:0;border-top:1px dashed var(--hair);width:100%;text-align:left;
+  background:none;cursor:pointer;display:block;font:inherit;font-size:13.6px;font-weight:600;color:var(--sea)}
+.sinc-more span{display:inline-flex;align-items:center;gap:6px}
+.sinc-more span::after{content:"";width:7px;height:7px;border-right:1.7px solid currentColor;border-bottom:1.7px solid currentColor;transform:rotate(-45deg)}
+.sinc-more:hover{color:var(--beam2)}
+.svc-list{max-width:860px}
+
+/* цветовые акценты в списке услуг: бесплатный вход и выгодный пакет */
+.sblock.sb-amber{background:var(--wash);box-shadow:inset 0 0 0 1.4px rgba(242,169,59,.55)}
+.sblock.sb-sky{background:var(--sky);box-shadow:inset 0 0 0 1.4px rgba(22,76,104,.22)}
+.sb-tag{display:block;width:max-content;margin-top:6px;padding:4px 10px;border-radius:7px;background:var(--grn);
+  color:#fff;font-size:12.5px;font-weight:700;letter-spacing:.01em}
+
+/* ============ ФОРМА ЗАЯВКИ: ЧИТАЕМОСТЬ ============ */
+#mForm .field{margin-top:20px}
+#mForm .field>label{font-size:15.5px;font-weight:700;color:var(--ink);margin-bottom:8px;letter-spacing:-.005em}
+#mForm .field .hint{font-size:12.8px;color:var(--soft)}
+#mForm .field input,#mForm .field select,#mForm .field textarea{background:var(--core);box-shadow:inset 0 0 0 1.4px rgba(13,59,84,.22)}
+#mForm .field input::placeholder,#mForm .field textarea::placeholder{color:var(--faint)}
+#mForm .dd-chip{background:var(--core);box-shadow:inset 0 0 0 1.4px rgba(13,59,84,.2);color:var(--ink)}
+#mForm .dd-chip.dd-unk{color:var(--soft)}
+#mForm .dd-chip:has(input:checked){background:var(--deep);color:#fff;box-shadow:none}
+#mForm #fmS{font-size:14.6px;color:var(--ink2);background:var(--bg2);border-radius:10px;padding:10px 13px}
+#mForm .agrees{margin-top:24px}
+#mForm .agree{font-size:13.8px;color:var(--ink)}
+#mForm .agree.opt{color:var(--ink2)}
+#mForm .dd-warrant{font-size:12.4px;color:var(--soft);border-left:2px solid var(--hair);padding-left:10px}
+.card .tier-mini{margin:6px 0 0;padding-left:18px;font-size:14.6px;color:var(--ink2);line-height:1.6}
+.card .tier-mini b{color:var(--ink)}
+.card .inc-o{color:var(--soft);font-size:13.6px}
