@@ -3,7 +3,7 @@ import { resolve, join } from 'path'
 import { existsSync } from 'fs'
 
 const pages = [
-  'about', 'property', 'build', 'realtors', 'reports', 'faq', 'blog',
+  'about', 'checklists', 'property', 'build', 'realtors', 'reports', 'faq', 'blog',
   'contacts', 'legal', 'pay', 'privacy', 'terms', 'offer', 'cookie',
   'account', 'checkout', 'unsubscribe', 'payment/result', '404'
 ]
