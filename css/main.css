@@ -1173,3 +1173,38 @@ a.post:hover{transform:translateY(-3px);box-shadow:0 0 0 1px var(--sky2),0 18px 
 #page-article .doc .cl-promo{margin:34px 0 10px}
 #page-article .page-head h1{max-width:900px}
 @media (max-width:640px){#page-article .doc{font-size:16px}}
+
+/* ---------- текстовые страницы: чек-листы и статьи ---------- */
+.doc{max-width:860px;font-size:17px;line-height:1.7;color:var(--ink)}
+.doc>p{margin:0 0 14px;color:var(--ink2)}
+.doc>h2{margin:56px 0 14px;font-size:clamp(25px,3vw,34px)}
+.doc>h2:first-child{margin-top:0}
+.doc>h3{margin:30px 0 10px;font-size:19px}
+.doc .small{margin-top:28px;color:var(--faint)}
+.cl-doc .cl-promo{margin:22px 0 26px}
+.cl-q{display:grid;grid-template-columns:38px minmax(0,1fr);gap:16px;padding:22px 24px;margin:14px 0;border-radius:18px;
+  background:var(--core);box-shadow:0 0 0 1px var(--hair)}
+.cl-n{width:38px;height:38px;border-radius:50%;background:var(--deep);color:#fff;display:grid;place-items:center;font-weight:700;font-size:15px}
+.cl-qb h3{font-size:18.5px;line-height:1.35;margin:5px 0 10px;color:var(--deep)}
+.cl-qb p{margin:0 0 10px;font-size:16px;line-height:1.65;color:var(--ink2)}
+.cl-qb p.cl-ans{margin:0;padding:12px 15px;border-radius:12px;background:var(--bg2);font-size:15.2px;color:var(--ink2)}
+.cl-docs{padding:22px 24px;margin:14px 0;border-radius:18px;background:var(--core);box-shadow:0 0 0 1px var(--hair)}
+.cl-docs h3{font-size:18.5px;margin:0 0 12px;color:var(--deep)}
+.cl-docs p{margin:0 0 10px;font-size:15.6px;color:var(--soft)}
+.cl-docs .doc-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.cl-docs .doc-list li{position:relative;padding-left:32px;font-size:16px;line-height:1.6;color:var(--ink2)}
+.cl-docs .doc-list li::before{content:"";position:absolute;left:0;top:4px;width:18px;height:18px;border-radius:5px;
+  box-shadow:inset 0 0 0 1.8px var(--sea);background:var(--core)}
+.cl-note{padding:20px 24px;margin:22px 0;border-radius:16px;background:var(--wash);box-shadow:inset 4px 0 0 var(--beam)}
+.cl-note h3{font-size:18px;margin:0 0 8px;color:var(--deep)}
+.cl-note p{margin:0 0 8px;font-size:16px;color:var(--ink2)}.cl-note p:last-child{margin:0}
+@media (max-width:640px){
+  .doc{font-size:16px}
+  .cl-q{grid-template-columns:1fr;gap:10px;padding:18px}
+  .cl-n{width:32px;height:32px;font-size:14px}
+  .cl-docs,.cl-note{padding:18px}
+}
+
+/* ---------- заголовки разделов вопросов и ответов ---------- */
+.faq-cat h2.faq-h{display:flex;align-items:baseline;gap:12px;margin:0 0 16px;font-size:clamp(22px,2.4vw,28px)}
+.faq-cat h2.faq-h em{font-style:normal;font-size:13px;color:var(--faint);font-weight:500;letter-spacing:0}
