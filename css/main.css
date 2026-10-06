@@ -1251,3 +1251,6 @@ a.post:hover{transform:translateY(-3px);box-shadow:0 0 0 1px var(--sky2),0 18px 
 .fd-col .fd-list li:first-child{border-top:1px solid var(--hair)}
 @media (max-width:860px){.fd2{grid-template-columns:1fr}}
 .fd-col .fd-list,.fd-col .fd-soon{text-align:center}
+.fd-col-v .fd-list{background:var(--core);border-radius:18px;padding:6px 20px;box-shadow:0 0 0 1px var(--hair)}
+.fd-col-v .fd-list li,.fd-col-v .fd-list li:first-child,.fd-col-v .fd-list li:last-child{border-top:0;border-bottom:0}
+.fd-col-v .fd-list li+li{border-top:1px solid var(--hair)}
