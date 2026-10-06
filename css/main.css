@@ -1208,3 +1208,46 @@ a.post:hover{transform:translateY(-3px);box-shadow:0 0 0 1px var(--sky2),0 18px 
 /* ---------- заголовки разделов вопросов и ответов ---------- */
 .faq-cat h2.faq-h{display:flex;align-items:baseline;gap:12px;margin:0 0 16px;font-size:clamp(22px,2.4vw,28px)}
 .faq-cat h2.faq-h em{font-style:normal;font-size:13px;color:var(--faint);font-weight:500;letter-spacing:0}
+
+/* ---------- команда: основатели ---------- */
+.fd{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:clamp(22px,3vw,44px);row-gap:22px;
+  grid-template-areas:"sf viv" "sph vph" "siv vf";align-items:start}
+.fd-s-facts{grid-area:sf;align-self:end}.fd-v-iv{grid-area:viv;align-self:end}
+.fd-s-ph{grid-area:sph}.fd-v-ph{grid-area:vph}
+.fd-s-iv{grid-area:siv}.fd-v-facts{grid-area:vf}
+.fd-ph{display:flex;flex-direction:column;align-items:center;text-align:center}
+.fd-ava{width:clamp(170px,18vw,220px);height:clamp(170px,18vw,220px);border-radius:50%;object-fit:cover;display:block;
+  box-shadow:0 0 0 6px var(--core),0 0 0 7px var(--hair),var(--sh)}
+.fd-ava-ph{display:grid;place-items:center;background:linear-gradient(135deg,var(--sky),var(--mist));color:var(--sea);
+  font-size:clamp(44px,5vw,58px);font-weight:700;letter-spacing:-.02em}
+.fd-nm{margin-top:18px;font-size:21px;font-weight:700;letter-spacing:-.02em;color:var(--ink)}
+.fd-role{margin-top:7px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--beam2);
+  background:var(--wash);border-radius:99px;padding:5px 11px}
+.fd-list{list-style:none;margin:0;padding:0;font-size:15px;line-height:1.5;color:var(--ink2)}
+.fd-list li{padding:10px 0;border-top:1px solid var(--hair)}.fd-list li:last-child{border-bottom:1px solid var(--hair)}
+.fd-iv{display:flex;flex-direction:column;gap:10px}
+.iv-q{display:flex;align-items:center;gap:10px;font-size:14.4px;font-weight:700;color:var(--sea);margin-top:6px}
+.iv-mic{flex:none;width:32px;height:32px;border-radius:50%;background:var(--deep);color:var(--beam);display:grid;place-items:center}
+.iv-a{position:relative;background:var(--sky);border-radius:20px 20px 20px 6px;padding:18px 22px 18px 50px;
+  font-size:15.4px;line-height:1.65;color:var(--ink)}
+.iv-a:before{content:"«";position:absolute;left:18px;top:12px;font-size:34px;line-height:1;font-weight:800;color:var(--beam)}
+.iv-a p+p{margin-top:10px}
+@media (max-width:860px){
+  .fd{grid-template-columns:1fr;grid-template-areas:"sf" "sph" "siv" "viv" "vph" "vf"}
+  .fd-s-facts,.fd-v-iv{align-self:auto}.fd-v-iv{margin-top:26px}
+  .iv-a{padding:16px 18px 16px 42px}.iv-a:before{left:14px}
+}
+.fd-iv2{margin-top:22px}
+.fd-soon{background:var(--bg2);border-radius:18px;padding:20px 22px;font-size:15px;line-height:1.55;color:var(--soft)}
+
+/* основатели: две колонки, у каждого своя подложка */
+.fd2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(18px,2.4vw,30px);align-items:stretch}
+.fd-col{border-radius:24px;padding:clamp(22px,2.6vw,34px);display:flex;flex-direction:column;gap:20px}
+.fd-col-s{background:var(--core);box-shadow:0 0 0 1px var(--hair),var(--sh)}
+.fd-col-v{background:var(--sky);box-shadow:0 0 0 1px var(--hair)}
+.fd-col-v .iv-a{background:var(--core)}
+.fd-col-v .fd-ava{box-shadow:0 0 0 6px var(--sky),0 0 0 7px var(--hair),var(--sh)}
+.fd-col-s .fd-soon{background:var(--bg2)}
+.fd-col .fd-list li:first-child{border-top:1px solid var(--hair)}
+@media (max-width:860px){.fd2{grid-template-columns:1fr}}
+.fd-col .fd-list,.fd-col .fd-soon{text-align:center}

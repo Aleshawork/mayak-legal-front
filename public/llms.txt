@@ -24,7 +24,7 @@
 - [Примеры отчётов](https://www.mayak-legal.ru/reports/)
 - [Вопросы и ответы](https://www.mayak-legal.ru/faq/)
 - [Чек-листы перед покупкой недвижимости](https://www.mayak-legal.ru/checklists/): 10 вопросов продавцу и список документов для сделки, есть PDF
-- [О компании](https://www.mayak-legal.ru/about/)
+- [Команда](https://www.mayak-legal.ru/about/): основатели сервиса
 - [Контакты](https://www.mayak-legal.ru/contacts/)
 - [Оплата](https://www.mayak-legal.ru/pay/)
 - [Правовая информация](https://www.mayak-legal.ru/legal/)
