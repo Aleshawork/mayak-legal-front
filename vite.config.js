@@ -5,7 +5,8 @@ import { existsSync } from 'fs'
 const pages = [
   'about', 'checklists', 'property', 'build', 'realtors', 'reports', 'faq', 'blog',
   'contacts', 'legal', 'pay', 'privacy', 'terms', 'offer', 'cookie',
-  'account', 'checkout', 'unsubscribe', 'payment/result', '404'
+  'account', 'checkout', 'unsubscribe', 'payment/result', '404',
+  'blog/vypiska-egrn', 'blog/zadatok-i-avans', 'blog/bankrotstvo-prodavca', 'blog/matkapital-doli-detej', 'blog/uchastok-izhs'
 ]
 
 function mpaSlashless() {
