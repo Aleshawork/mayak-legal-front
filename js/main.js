@@ -192,7 +192,7 @@ function initBlog(){
       ['Вы гарантируете, что сделку никто не оспорит?','Нет — и любой, кто это обещает, Вас обманывает. Часть рисков в российской недвижимости невозможно исключить полностью в принципе. Мы проверяем всё, что входит в выбранный вариант проверки, прямо пишем, что проверить нельзя, и даём рекомендацию с учётом реального риска.'],
       ['Вы откажетесь от сделки за меня, если найдёте риск?','Решение всегда за Вами. Мы показываем риск и его уровень — заходить в сделку, заходить с условиями или не заходить, решаете Вы.'],
       ['Чем Ваш отчёт отличается от выписки из ЕГРН?','Выписка показывает сведения реестра на дату запроса и не объясняет, что они значат для покупателя. В отчёте мы сопоставляем сведения ЕГРН с данными о доме из ГИС ЖКХ, а в стандартной и расширенной проверке ещё и со справочным отчётом об объекте, историей перехода прав и Вашими документами. Каждый найденный пункт мы объясняем и добавляем вопросы, которые стоит задать продавцу. Часть рисков в выписке не видна вовсе, например банкротство продавца, поэтому продавца мы проверяем отдельно.'],
-      ['Какую проверку объекта выбрать?','Экспресс-проверка за 990 ₽ помогает быстро отсеять объект до просмотра. В неё входят открытые сведения ЕГРН, состояние дома и реновация. Стандартная за 1 990 ₽ добавляет справочный отчёт об объекте из Росреестра с правообладателем, обременениями, арестами и запретами, и её мы советуем заказывать перед авансом. Расширенная за 2 990 ₽ добавляет историю перехода прав и разбор документов, которые Вы получили от продавца.']
+      ['Какую проверку объекта выбрать?','Экспресс-проверка за 990 ₽ помогает быстро отсеять объект до просмотра. В неё входят открытые сведения ЕГРН, состояние дома и реновация. Стандартная за 1 990 ₽ добавляет справочный отчёт об объекте из Росреестра с подробными сведениями о зарегистрированных правах и ограничениях, и её мы советуем заказывать перед авансом. Расширенная за 2 990 ₽ добавляет историю перехода прав и разбор документов, которые Вы получили от продавца.']
     ]},
     {c:'Отчёт',q:[
       ['Что внутри отчёта?','Вердикт на первой странице, сводка по цифрам, затем каждый найденный пункт: что нашли, чем это грозит именно Вам, что с этим делать и на какую норму закона мы опираемся. В конце — вывод юриста и, если есть основания, оценка суммы для торга.'],
@@ -593,6 +593,7 @@ function openForm(kind,key){
     cfg=FORMS[key]||{s:'',f:[]}; title=s.n; sub=cfg.s; svcName=s.n; price=s.pr; ptxt=s.p;
   }
   f.classList.remove('sent');
+  goal('form_open'); goal('form_open_'+(kind==='svc'?key:kind));
   document.getElementById('fmT').textContent=title;
   var fs=document.getElementById('fmS'); fs.textContent=sub||''; fs.hidden=!sub;
   var needSurvey=(kind==='svc'&&['obj-fast','obj-deep','obj-full','deal','deal-all','land'].indexOf(key)>=0)
@@ -1007,8 +1008,10 @@ function adDone(f,reportUrl,ageSec,rerun){
   box.innerHTML='<h4>Разбор готов</h4>'+
     (when?'<p class="small">Это объявление уже разбиралось сегодня. Показываем разбор от '+when+'.</p>':'')+
     '<p><a class="btn b-amber" href="'+esc(reportUrl)+'" target="_blank" rel="noopener">Открыть разбор объявления</a></p>'+
-    (when?'<p><button class="btn b2" type="button" data-ad-again>Проверить заново</button></p>':'');
-  f.classList.add('sent');
+    (when?'<p><button class="btn b2" type="button" data-ad-again>Проверить заново</button></p>':'')+
+    '<div class="next-step"><span class="ns-k">Следующий шаг</span><p>Если объявление подходит, проверьте объект по сведениям ЕГРН до аванса. Отчёт с выводом по каждому риску, до 3 часов.</p>'+
+    '<button class="btn b1" type="button" data-tiers="obj">Проверить объект · от 990\u00a0₽</button></div>';
+  f.classList.add('sent'); goal('ad_done');
   var again=box.querySelector('[data-ad-again]');
   if(again) again.addEventListener('click',function(){ f.classList.remove('sent'); rerun(true); });
 }
@@ -1202,10 +1205,12 @@ function drawSuccess(){
   if(way) way.textContent='«'+order.name+'». Результат работ придёт '+order.way+
     ' в срок, указанный для этой услуги. Чек придёт на почту в течение рабочего дня.';
   if(h) h.textContent=order.price?'Оплата прошла, заказ принят':'Заказ принят';
+  goal(order.price?'payment_success':'order_success');
 }
 document.addEventListener('click',function(e){
   var payBtn=e.target.closest('#coPay');
   if(!payBtn) return;
+  goal('pay_click');
   e.preventDefault();
   if(!order){ alert('Заказ не найден. Оформите заявку заново.'); return; }
   if(order.case_id&&order.dd){
@@ -1272,7 +1277,8 @@ function loadMetrika(){
 }
 function goal(name){ try{ if(window.ym&&METRIKA_ID) window.ym(+METRIKA_ID,'reachGoal',name); }catch(x){} }
 
-document.addEventListener('click',function(e){ var a=e.target.closest('a[href$=".pdf"]'); if(a) goal('pdf_download'); });
+document.addEventListener('click',function(e){ var a=e.target.closest('a[href$=".pdf"]'); if(a) goal('pdf_download');
+  var g=e.target.closest('[data-goal]'); if(g) goal(g.getAttribute('data-goal')); });
 
 /* ============ COOKIE ============ */
 (function(){
@@ -1306,6 +1312,24 @@ document.addEventListener('click',function(e){ var a=e.target.closest('a[href$="
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&isl.classList.contains('open')){ set(false); b.focus(); } });
   document.addEventListener('click',function(e){ if(isl.classList.contains('open')&&!isl.contains(e.target)) set(false); });
   window.addEventListener('resize',function(){ if(window.innerWidth>1040) set(false); });
+})();
+
+/* ============ ЗАКРЕПЛЁННАЯ КНОПКА НА ТЕЛЕФОНЕ ============ */
+(function(){
+  var path=location.pathname.replace(/index\.html$/,'');
+  if(['/','/property/'].indexOf(path)<0||!document.getElementById('formModal')) return;
+  var w=document.createElement('div'); w.className='sticky-cta';
+  w.innerHTML='<button class="btn b-amber" type="button" data-form="svc" data-svc="ad" data-goal="sticky_ad">Проверить объявление бесплатно</button>';
+  document.body.appendChild(w);
+  var foot=document.querySelector('.foot');
+  function upd(){
+    var y=window.scrollY||window.pageYOffset, nearFoot=foot&&foot.getBoundingClientRect().top<window.innerHeight;
+    var modal=document.querySelector('.modal.open,.modal.on,.modal[aria-hidden="false"]');
+    var adf=document.getElementById('ad-link'), adBox=adf&&adf.closest('form'), r=adBox&&adBox.getBoundingClientRect();
+    var adVis=r&&r.bottom>0&&r.top<window.innerHeight;
+    w.classList.toggle('on',y>520&&!nearFoot&&!modal&&!adVis);
+  }
+  window.addEventListener('scroll',upd,{passive:true}); window.addEventListener('resize',upd); upd();
 })();
 
 /* ============ ВЫПАДАЮЩИЙ СПИСОК ============ */
