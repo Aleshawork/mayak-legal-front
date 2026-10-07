@@ -1254,3 +1254,11 @@ a.post:hover{transform:translateY(-3px);box-shadow:0 0 0 1px var(--sky2),0 18px 
 .fd-col-v .fd-list{background:var(--core);border-radius:18px;padding:6px 20px;box-shadow:0 0 0 1px var(--hair)}
 .fd-col-v .fd-list li,.fd-col-v .fd-list li:first-child,.fd-col-v .fd-list li:last-child{border-top:0;border-bottom:0}
 .fd-col-v .fd-list li+li{border-top:1px solid var(--hair)}
+
+/* Таблица целей обработки в Политике */
+.doc-tbl-wrap{overflow-x:auto;margin:6px 0 22px;border-radius:14px;box-shadow:0 0 0 1px var(--hair)}
+.doc-tbl{border-collapse:collapse;min-width:760px;width:100%;font-size:14px;line-height:1.55;color:var(--ink2)}
+.doc-tbl th{background:var(--bg2);text-align:left;font-weight:600;color:var(--deep);padding:12px 14px;vertical-align:bottom}
+.doc-tbl td{padding:12px 14px;vertical-align:top;border-top:1px solid var(--hair)}
+.doc-tbl td b{color:var(--ink)}
+.mbody .doc-tbl{min-width:680px;font-size:13.4px}
