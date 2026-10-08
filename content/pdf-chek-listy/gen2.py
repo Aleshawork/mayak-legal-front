@@ -13,7 +13,7 @@ def promo(p,camp):
     return f'<a class="promo" href="{u(path,c,camp)}"><div class="pr-l"><div class="pr-k">Маяк поможет</div><div class="pr-t">{E(t)}</div><div class="pr-d">{E(nb(text))}</div></div><div class="pr-r"><div class="pr-p">{E(nb(price))}</div><div class="pr-b">{E(btn)} →</div></div></a>'
 def qcard(i,q):
     t,body,warn=q
-    w=f'<div class="warn"><b>Насторожит:</b> {E(warn)}</div>' if warn else ''
+    w=f'<div class="warn">Повод насторожиться, если {E(warn)}</div>' if warn else ''
     return f'<div class="q"><div class="qn">{i}</div><div class="qb"><h3>{E(t)}</h3><p>{E(nb(body))}</p>{w}</div></div>'
 def dsec(sec):
     t,lead,items=sec
@@ -26,7 +26,7 @@ def build(S,out):
         k=blk[0]
         if k=='h2': body.append(f'<h2>{E(blk[1])}</h2>')
         elif k=='lead': body.append(f'<p class="lead" style="font-size:9.6pt">{E(nb(blk[1]))}</p>')
-        elif k=='note': body.append(f'<div class="note"><b>{E(blk[1])}</b> {E(nb(blk[2]))}</div>')
+        elif k=='note': body.append(f'<div class="note">'+(f'<b>{E(blk[1])}</b> ' if blk[1] else '')+f'{E(nb(blk[2]))}</div>')
         elif k=='qs':
             start=blk[2] if len(blk)>2 else 1
             for i,q in enumerate(blk[1],start): body.append(qcard(i,q))
