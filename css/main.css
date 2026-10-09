@@ -1262,3 +1262,7 @@ a.post:hover{transform:translateY(-3px);box-shadow:0 0 0 1px var(--sky2),0 18px 
 .doc-tbl td{padding:12px 14px;vertical-align:top;border-top:1px solid var(--hair)}
 .doc-tbl td b{color:var(--ink)}
 .mbody .doc-tbl{min-width:680px;font-size:13.4px}
+.fd-col-s .fd-list{background:var(--bg2);border-radius:18px;padding:6px 20px}
+.fd-col-s .fd-list li,.fd-col-s .fd-list li:first-child,.fd-col-s .fd-list li:last-child{border-top:0;border-bottom:0}
+.fd-col-s .fd-list li+li{border-top:1px solid var(--hair)}
+.fd-col-s .fd-list li+li:last-child,.fd-col-v .fd-list li+li:last-child{border-top:1px solid var(--hair)}
