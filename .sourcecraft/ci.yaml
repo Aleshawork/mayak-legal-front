@@ -103,6 +103,8 @@ workflows:
                     *.jpg|*.jpeg) echo "image/jpeg" ;;
                     *.webp) echo "image/webp" ;;
                     *.ico) echo "image/x-icon" ;;
+                    *.xml) echo "application/xml; charset=utf-8" ;;
+                    *.pdf) echo "application/pdf" ;;
                     *) echo "application/octet-stream" ;;
                   esac
                 }
