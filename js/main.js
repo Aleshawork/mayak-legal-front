@@ -1185,8 +1185,7 @@ function leadPrepare(box){
   var ex=box.querySelector('[name="extra"]'), we=ex&&ex.closest('.field'); if(we) we.hidden=true;
 }
 
-/* Формы без адреса приёма: вход в кабинет (макет) и отписка — у отписки нет согласия
-   на обработку данных, а /api/lead без него заявку не принимает. Остаются как были. */
+/* Форма без адреса приёма: вход в кабинет (макет). Остаётся как была. */
 var SEND_TO='';
 function sendForm(f,extra){
   if(!SEND_TO) return;
@@ -1303,7 +1302,26 @@ document.addEventListener('submit',function(e){
     });
     return;
   }
-  sendForm(f,{form:({formUnsub:'Отписка от рассылок'}[id]||id)});
+  /* Отписка (решение 522, § 5, п. 4; контракт 1.10, раздел 7): без согласия на ПД,
+     заявкой не хранится. «Готово» — только после ответа сервера: раньше форма
+     писала его, ничего никуда не отправив. */
+  if(id==='formUnsub'){
+    var ub=f.querySelector('.submit'), uprev=ub?ub.innerHTML:'';
+    if(ub){ ub.disabled=true; ub.textContent='Отписываем…'; }
+    var umail=((f.querySelector('[name="email"]')||{}).value||'').trim();
+    var uwhat=[].slice.call(f.querySelectorAll('input[name="un"]:checked')).map(function(x){ return x.value; });
+    var ubody={form:'Отписка от рассылок', email:umail, date:nowStr(), page:location.pathname};
+    if(uwhat.length) ubody.un=uwhat;
+    apiLead('/api/lead',ubody).then(function(){
+      if(ub){ ub.disabled=false; ub.innerHTML=uprev; }
+      f.classList.add('sent'); goal('form_'+id);
+    }).catch(function(err){
+      if(ub){ ub.disabled=false; ub.innerHTML=uprev; }
+      alert(((err&&err.message)||'Не удалось отписаться')+'\n\nЕсли ошибка повторяется, напишите на support@mayak-legal.ru');
+    });
+    return;
+  }
+  sendForm(f,{form:id});
   f.classList.add('sent'); goal('form_'+id);
 },true);
 
