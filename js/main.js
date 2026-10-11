@@ -584,6 +584,7 @@ function openForm(kind,key){
   var mkKn=''; try{ mkKn=sessionStorage.getItem('mayak-kn')||''; }catch(x){}
   if(mkKn){ var mkKf=document.getElementById('fmFields').querySelector('[name="kad"]');
             if(mkKf&&!mkKf.value) mkKf.value=mkKn; }
+  if(kind==='svc'&&LEAD_SKUS[key]) leadPrepare(document.getElementById('fmFields'));
   if(needSurvey) svState={};
   document.getElementById('fmSurvey').innerHTML=needSurvey?surveyHtml():'';
   if(isDD) ddRefreshSurvey(f);
@@ -685,7 +686,8 @@ function apiJson(path, opts){
 /* ============ ПРОВЕРКА ОБЪЕКТА: ЗАКАЗ ЧЕРЕЗ /api/dd/* (контракт API 1.9) ============ */
 /* Порядок по контракту: form → согласие → case → upload-url → PUT → commit; start — со страницы оплаты.
    Сумму не присылаем: цену бэк берёт из своей таблицы по коду тарифа.
-   В заказе ровно шесть полей верхнего уровня. «Не знаю» и пропуск — отсутствие ключа. */
+   В заказе шесть полей верхнего уровня и седьмое, «метки», — когда они есть (контракт 1.10).
+   «Не знаю» и пропуск — отсутствие ключа. */
 var DD_SKUS={'obj-fast':1,'obj-deep':1,'obj-full':1};
 var DD_DOCS_SKU='obj-full';               /* документы клиента принимаются только в расширенной */
 var DD_PD_REV='политика-2026-09-01';     /* версия формы согласия из закрытого перечня бэка */
@@ -865,6 +867,7 @@ function ddCreateCase(f,key,setBusy){
         {'вид':'оферта','дано':true,'редакция':DD_OFFER_REV,'текст':DD_OFFER_TEXT}
       ]
     };
+    var mt=utmGet(); if(mt) body['метки']=mt;   /* контракт 1.10, § 2 */
     return apiDD('/api/dd/case',body);
   }).then(function(c){
     var caseId=c['дело']; if(!caseId) throw new Error('Сервис не вернул номер дела');
@@ -1055,23 +1058,142 @@ function adFromQuery(){
   if(hook&&hook.scrollIntoView) hook.scrollIntoView({block:'center',behavior:REDUCE?'auto':'smooth'});
 }
 
-/* ------------------------------------------------------------------ *
- *  ЗДЕСЬ ПОДКЛЮЧАЕТСЯ ОТПРАВКА ЗАЯВКИ                                *
- *  Впишите адрес обработчика в SEND_TO — и заявки начнут уходить.    *
- *  Например: var SEND_TO='/send.php';                                *
- *  Пока строка пустая, данные никуда не отправляются.                *
- *  Уходит: название услуги, номер и дата заказа, канал связи,        *
- *  все поля формы и файлы, отметки согласий, ответы анкеты.          *
- * ------------------------------------------------------------------ */
+/* ============ МЕТКИ РЕКЛАМЫ (utm) ============ */
+/* utm_* с первой страницы, где они встретились за визит, — в sessionStorage.
+   Уходят объектом «метки» и в /api/dd/case, и в /api/lead. Сервер принимает
+   ровно эти пять ключей, строкой до 200 знаков; лишний ключ — отказ всей заявки. */
+var UTM_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','utm_term'];
+function utmCatch(){
+  try{
+    if(sessionStorage.getItem('mayak-utm')) return;
+    var q=new URLSearchParams(location.search||''), m={}, any=false;
+    UTM_KEYS.forEach(function(k){ var v=q.get(k); if(v){ m[k]=v.slice(0,200); any=true; } });
+    if(any) sessionStorage.setItem('mayak-utm',JSON.stringify(m));
+  }catch(x){}
+}
+function utmGet(){
+  try{
+    var m=JSON.parse(sessionStorage.getItem('mayak-utm')||'null'), out={}, any=false;
+    if(!m||typeof m!=='object') return null;
+    UTM_KEYS.forEach(function(k){ if(typeof m[k]==='string'&&m[k]){ out[k]=m[k].slice(0,200); any=true; } });
+    return any?out:null;
+  }catch(x){ return null; }
+}
+
+/* ============ ЗАЯВКИ: POST /api/lead (контракт API 1.10) ============ */
+/* Все формы, кроме проверки объекта (/api/dd/*) и разбора объявления (/api/listing).
+   Ответ: {ok, id} — экран «принято»; {ok, id, pay_url} — переход на оплату Robokassa
+   обычным переходом браузера; 501 у платной — оплата ещё не подключена, и заявка
+   на сервере НЕ сохраняется; 4xx — текст ошибки сервера, он написан для клиента.
+   В адрес страницы и в Метрику — ни одного поля формы: только код услуги в имени цели. */
+var LEAD_SKUS={'sel-full':1,'deal':1,'dkp':1,'consult':1,'deal-all':1,'land':1,
+               'builder':1,'podryad':1,'priemka':1,'build-all':1};
+var LEAD_FIELDS=['seller','link','kad','addr','desc','time','builder'];
+var LEAD_FORMS={formCl:'Запрос чек-листов',formCl2:'Запрос чек-листов (страница)',
+                formSamples:'Запрос примеров отчётов'};
+/* Файлы к заявке — второй шаг через /api/lead/upload-url (решение 518, § 2).
+   Пока маршруты не выложены, поле файла скрыто, и заявка уходит без файлов. */
+var LEAD_FILES=false, LEAD_MAX_FILES=20;
+var LEAD_NO_FILES='Загрузка документов к заявке появится в ближайшие дни. Сейчас опишите задачу в форме.';
+var LEAD_NO_PAY='Онлайн-оплата этой услуги подключается в ближайшие дни. Заявка не отправлена: оформите её, когда оплата заработает, или напишите на sales@mayak-legal.ru — оформим вручную.';
+function apiLead(path,body){
+  return fetch(ESTATE_API+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  .then(function(res){
+    return res.text().then(function(text){
+      var d=null; try{ d=text?JSON.parse(text):{}; }catch(x){ d={}; }
+      if(!res.ok||d.ok===false){
+        var er=new Error(d.error||('Сервис ответил ошибкой '+res.status)); er.status=res.status; throw er;
+      }
+      return d;
+    });
+  });
+}
+/* Согласие — тем текстом, который клиент видел у галочки: отпечаток текста и есть доказательство. */
+function agreeText(lab){ return lab?(lab.textContent||'').replace(/\s+/g,' ').trim():''; }
+function leadConsents(f){
+  var out={};
+  [].slice.call(f.querySelectorAll('.agree')).forEach(function(lab){
+    var box=lab.querySelector('input[data-agree]'); if(!box||!box.checked||lab.closest('[hidden]')) return;
+    if(lab.querySelector('[data-doc="offer"]')) out.consent_offer={'дано':true,'редакция':DD_OFFER_REV,'текст':agreeText(lab)};
+    else if(lab.querySelector('[data-doc="consent"],[data-doc="privacy"]')) out.consent_pd={'дано':true,'редакция':DD_PD_REV,'текст':agreeText(lab)};
+  });
+  return out;
+}
+function leadCommon(f,form){
+  var val=function(n){ return ((f.querySelector('[name="'+n+'"]')||{}).value||'').trim(); };
+  var b={form:form, date:nowStr(), page:location.pathname};
+  if(val('email')) b.email=val('email');
+  var ads=f.querySelector('input[name="ads"]'); if(ads&&ads.checked) b.ads=true;
+  var ref=adRef(); if(ref) b.ref=ref;
+  var mt=utmGet(); if(mt) b['метки']=mt;
+  var c=leadConsents(f); Object.keys(c).forEach(function(k){ b[k]=c[k]; });
+  return b;
+}
+function leadFiles(f){
+  if(!LEAD_FILES) return [];
+  var out=[];
+  [].slice.call(f.querySelectorAll('input[type="file"]')).forEach(function(inp){
+    if(inp.closest('[hidden]')||!inp.files) return;
+    [].slice.call(inp.files).forEach(function(file){ out.push({field:inp.name,file:file}); });
+  });
+  if(out.length>LEAD_MAX_FILES) throw new Error('Можно приложить не больше '+LEAD_MAX_FILES+' файлов');
+  ddCheckFiles(out.map(function(x){ return x.file; }));
+  return out;
+}
+function leadUpload(id,files,setBusy){
+  if(!files.length) return Promise.resolve();
+  var done=[], chain=Promise.resolve();
+  files.forEach(function(x,ix){
+    chain=chain.then(function(){
+      if(setBusy) setBusy(true,'Загружаем документы: '+(ix+1)+' из '+files.length+'…');
+      return apiLead('/api/lead/upload-url',{id:id,field:x.field,name:x.file.name,size:x.file.size}).then(function(u){
+        /* Content-Length браузер берёт из файла сам; лишних заголовков не добавляем */
+        return fetch(u.url,{method:'PUT',body:x.file,redirect:'error'}).then(function(r){
+          if(!r.ok) throw new Error('Не удалось загрузить «'+x.file.name+'» ('+r.status+'). Попробуйте ещё раз.');
+          done.push(u.file);
+        });
+      });
+    });
+  });
+  return chain.then(function(){ return apiLead('/api/lead/commit',{id:id,files:done}); });
+}
+/* Заявка на услугу из окна формы. order уже собран обработчиком отправки. */
+function leadService(f,key,setBusy){
+  var val=function(n){ return ((f.querySelector('[name="'+n+'"]')||{}).value||'').trim(); };
+  var files=leadFiles(f);
+  var b=leadCommon(f,'Заявка на услугу');
+  b.svc=key; b.service=order.name; b.order=order.num; b.amount=order.ptxt;
+  b.channel='на электронную почту'; b.delivery='mail';
+  LEAD_FIELDS.forEach(function(n){ if(val(n)) b[n]=val(n); });
+  if(Object.keys(svState).length) b.anketa=svState;
+  if(setBusy) setBusy(true,'Отправляем заявку…');
+  return apiLead('/api/lead',b).then(function(d){
+    if(!d.id) throw new Error('Сервис не вернул номер заявки');
+    return leadUpload(d.id,files,setBusy).then(function(){ return d; });
+  });
+}
+/* Открытая форма заявки: поля без места в контракте прячем, а не теряем молча. */
+function leadPrepare(box){
+  if(!LEAD_FILES){
+    var hid=false;
+    [].slice.call(box.querySelectorAll('input[type="file"]')).forEach(function(inp){
+      var w=inp.closest('.field'); if(w){ w.hidden=true; hid=true; }
+    });
+    if(hid) box.insertAdjacentHTML('beforeend','<p class="form-note lead-nofiles">'+esc(LEAD_NO_FILES)+'</p>');
+  }
+  /* «Запасной контакт» в контракте заявки места не имеет: сервер отверг бы всю заявку */
+  var ex=box.querySelector('[name="extra"]'), we=ex&&ex.closest('.field'); if(we) we.hidden=true;
+}
+
+/* Формы без адреса приёма: вход в кабинет (макет) и отписка — у отписки нет согласия
+   на обработку данных, а /api/lead без него заявку не принимает. Остаются как были. */
 var SEND_TO='';
 function sendForm(f,extra){
   if(!SEND_TO) return;
   try{
     var fd=new FormData(f);
     Object.keys(extra||{}).forEach(function(k){ fd.append(k,extra[k]); });
-    if(Object.keys(svState).length) fd.append('anketa',JSON.stringify(svState));
     fd.append('page',location.pathname);
-    var mkRef=adRef(); if(mkRef) fd.append('ref',mkRef);
     fetch(SEND_TO,{method:'POST',body:fd});
   }catch(x){}
 }
@@ -1109,8 +1231,29 @@ document.addEventListener('submit',function(e){
            way:'на электронную почту',kind:pending.kind,
            svc:pending.key||'', email:email, kad:kad, addr:addr, case_id:null};
     saveOrder();
-    sendForm(f,{form:'Заявка на услугу',service:order.name,order:order.num,
-                date:order.date,amount:order.ptxt,channel:order.way});
+
+    if(pending.kind==='svc' && LEAD_SKUS[pending.key]){
+      var lbtn=f.querySelector('.submit'), lprev=lbtn?lbtn.innerHTML:'';
+      var lbusy=function(on,label){
+        if(!lbtn) return;
+        lbtn.disabled=!!on; lbtn.classList.toggle('off',!!on);
+        if(on) lbtn.textContent=label||'Отправляем…'; else lbtn.innerHTML=lprev;
+      };
+      var lkey=pending.key, lsent;
+      try{ lsent=leadService(f,lkey,lbusy); }
+      catch(err){ alert(err.message); return; }
+      lsent.then(function(d){
+        order.lead_id=d.id; saveOrder();
+        goal('order_'+lkey);
+        if(d.pay_url){ location.href=d.pay_url; return; }   /* ссылку не храним и не пишем никуда */
+        lbusy(false); closeModal(); go('success',true);
+      }).catch(function(err){
+        lbusy(false);
+        if(err&&err.status===501){ alert(LEAD_NO_PAY); return; }
+        alert(((err&&err.message)||'Не удалось отправить заявку')+'\n\nЕсли ошибка повторяется, напишите на sales@mayak-legal.ru');
+      });
+      return;
+    }
 
     if(pending.kind==='svc' && DD_SKUS[pending.key]){
       var btn=f.querySelector('.submit');
@@ -1148,8 +1291,19 @@ document.addEventListener('submit',function(e){
     return;
   }
   if(id==='formAuth'){ sendForm(f,{form:'Вход в личный кабинет'}); f.classList.add('sent'); setTimeout(lkOpen,700); return; }
-  sendForm(f,{form:({formCl:'Запрос чек-листов',formCl2:'Запрос чек-листов (страница)',formSamples:'Запрос примеров отчётов',
-                     formUnsub:'Отписка от рассылок'}[id]||id)});
+  if(LEAD_FORMS[id]){
+    var sb=f.querySelector('.submit'), sprev=sb?sb.innerHTML:'';
+    if(sb){ sb.disabled=true; sb.textContent='Отправляем…'; }
+    apiLead('/api/lead',leadCommon(f,LEAD_FORMS[id])).then(function(){
+      if(sb){ sb.disabled=false; sb.innerHTML=sprev; }
+      f.classList.add('sent'); goal('form_'+id);
+    }).catch(function(err){
+      if(sb){ sb.disabled=false; sb.innerHTML=sprev; }
+      alert(((err&&err.message)||'Не удалось отправить')+'\n\nЕсли ошибка повторяется, напишите на sales@mayak-legal.ru');
+    });
+    return;
+  }
+  sendForm(f,{form:({formUnsub:'Отписка от рассылок'}[id]||id)});
   f.classList.add('sent'); goal('form_'+id);
 },true);
 
@@ -1407,4 +1561,5 @@ document.addEventListener('click',function(e){
 flashIn();
 init(here());
 adFromQuery();
+utmCatch();
 })();
