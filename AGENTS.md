@@ -25,7 +25,7 @@ npm run preview # посмотреть собранный dist/
 - `SVC` — услуги: название, цена строкой (`p`) и числом (`pr`), срок, покрытие рисков.
 - `FORMS` — поля формы заявки для каждой услуги, `INC` — блок «что входит», `PACKS` — пакеты для риелторов.
 - Кнопка открытия заявки — `data-form="svc" data-svc="<ключ из SVC>"`.
-- Цену в разметке и `SVC[key].pr` держать согласованными, иначе в ЮKassa уйдёт не та сумма.
+- Цену в разметке и `SVC[key].pr` держать согласованными, и обе — равными канону цен сервера (`spec/цены.json` в `mayak-dd`): к оплате сервер берёт свою цену, и расхождение клиент увидит на странице Robokassa. Сверяет проверка в `mayak-dd`.
 
 ## Заявки — `POST /api/lead` (контракт API 1.10)
 
@@ -45,15 +45,16 @@ npm run preview # посмотреть собранный dist/
 
 ## Оплата — трогать только по согласованию
 
-Работающая цепочка: форма → `/checkout/` → кнопка `#coPay` → ЮKassa → `/payment/result/`.
+Оплата — Robokassa. Сумму считает сервер по коду услуги из своего канона цен; сайт сумму не присылает.
 
+- **Проверка объекта** (`DD_SKUS`: `obj-fast`, `obj-deep`, `obj-full`): форма → `/api/dd/form` → `/api/dd/case` → `/api/dd/upload-url` → PUT в Object Storage → `/api/dd/commit` → `/checkout/` → кнопка `#coPay` → `/api/dd/start` → переход по полю `оплата` ответа → Robokassa.
+- **Заявки на услугу** (`LEAD_SKUS`): `/api/lead` → переход по `pay_url` ответа → Robokassa.
+- `501` от `/api/dd/start` или `/api/lead` — оплата на сервере ещё не подключена; текст клиенту — «оплата подключается».
+- Возврат с Robokassa — `/payment/result/?rk=ok` (успех) и `?rk=fail` (отказ), метод GET; адреса задаются в кабинете Robokassa. URL страницы не переименовывать.
+- **Оплату отмечает сервер** по уведомлению Robokassa (ResultURL на шлюзе). Возврат на `/payment/result/` оплатой не считается: клиент узнаёт о ней письмом.
 - `ESTATE_API` — адрес Yandex API Gateway. Не менять.
-- `API_PAY_SKUS` — услуги, у которых оплата реально подключена (сейчас `obj-fast`, `obj-deep`, `obj-full`). Остальные платные услуги на checkout показывают «скоро».
-- `startEstateCase` — `/api/case` → `/api/upload-url` → PUT в Object Storage → `/api/commit` → `/api/start`.
-- `waitForPayment` — поллинг `/api/status` (50 попыток по 2.5 с) по полям `payment_status` и `confirmation_url`.
-- Presigned PUT подписан под конкретный метод и `Content-Type`: добавление лишних заголовков или смена метода даёт `SignatureDoesNotMatch`.
-- `/payment/result/` — это `return_url` ЮKassa, задан на бэкенде. URL страницы не переименовывать.
-- Редирект на `/payment/result/` не считать подтверждением оплаты.
+- Presigned PUT подписан под метод и точный размер файла: лишние заголовки или смена метода дают `SignatureDoesNotMatch`. `Content-Length` браузер ставит сам.
+- Старой цепочки ЮKassa (`/api/case`, `/api/start`, `waitForPayment`) в коде нет.
 
 ## Деплой
 

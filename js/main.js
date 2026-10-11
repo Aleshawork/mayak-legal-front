@@ -1318,30 +1318,39 @@ function drawCheckout(){
     '<div><dt>Итого</dt><dd>'+order.ptxt+'</dd></div>'+
     (order.consent?'<div><dt>Согласие на обработку данных</dt><dd>получено '+ddWhen(order.consent)+'</dd></div>':'');
 }
+/* Страница возврата с оплаты. Адреса успеха и отказа в настройках магазина Robokassa:
+   https://www.mayak-legal.ru/payment/result/?rk=ok и ?rk=fail, метод GET (страница
+   статическая, POST бакет не примет). Без «rk» различаем по параметрам самой
+   Robokassa: SignatureValue приходит только на адрес успеха.
+   ОПЛАТОЙ СТРАНИЦА НЕ СЧИТАЕТСЯ: оплату отмечает сервер по уведомлению Robokassa,
+   а клиент узнаёт о ней письмом. Подпись здесь не проверяется — проверить нечем. */
 function drawSuccess(){
   if(!document.getElementById('okNum')) return;
   if(!order){ order={num:orderNum(),date:nowStr(),name:'Заказ',price:0,ptxt:'—',way:'на электронную почту',kind:'svc'}; saveOrder(); }
   var q={}; try{ location.search.replace(/^\?/,'').split('&').forEach(function(p){ if(!p) return; var kv=p.split('='); q[decodeURIComponent(kv[0])]=(kv[1]&&decodeURIComponent(kv[1].replace(/\+/g,' ')))||''; }); }catch(x){}
-  var st=(q.status||q.payment_status||'').toLowerCase();
+  var rk=(q.rk||'').toLowerCase(), rkPaid=!!q.InvId;
+  var fail=rk==='fail'||(!rk&&rkPaid&&!q.SignatureValue);
+  var back=rk==='ok'||(!rk&&rkPaid&&!!q.SignatureValue);
   document.getElementById('okNum').textContent=order.num;
   document.getElementById('okDate').textContent=order.date;
   document.getElementById('okSum').textContent=order.price?order.ptxt:'без оплаты';
   var h=document.querySelector('.ok-hero h2');
   var way=document.getElementById('okWay');
-  if(st==='canceled'||st==='cancelled'||st==='failed'){
+  if(fail){
     if(h) h.textContent='Оплата не завершена';
-    if(way) way.textContent='Платёж отменён или не прошёл. Вы можете вернуться и оформить заказ ещё раз, либо написать на sales@mayak-legal.ru.';
+    if(way) way.textContent='Платёж отменён или не прошёл. Вы можете вернуться и оформить заказ ещё раз, либо написать на sales@mayak-legal.ru, указав номер заказа.';
+    goal('payment_fail');
     return;
   }
-  if(st==='pending'||st==='waiting_for_capture'){
-    if(h) h.textContent='Ожидаем подтверждение оплаты';
-    if(way) way.textContent='Платёжный сервис ещё подтверждает платёж. Обычно это занимает несколько минут. Чек и результат придут '+order.way+'.';
+  if(back){
+    if(h) h.textContent='Спасибо! Ждём подтверждения оплаты';
+    if(way) way.textContent='«'+order.name+'». Как только платёжный сервис подтвердит оплату, заказ уйдёт в работу. Подтверждение и результат придут письмом '+order.way+' в срок, указанный для этой услуги. Чек тоже придёт на почту.';
+    goal('payment_success');   /* имя цели прежнее — для Метрики; это возврат с оплаты, а не её подтверждение */
     return;
   }
-  if(way) way.textContent='«'+order.name+'». Результат работ придёт '+order.way+
-    ' в срок, указанный для этой услуги. Чек формируется автоматически в момент оплаты и приходит на почту.';
-  if(h) h.textContent=order.price?'Оплата прошла, заказ принят':'Заказ принят';
-  goal(order.price?'payment_success':'order_success');
+  if(way) way.textContent='«'+order.name+'». Результат придёт письмом '+order.way+' в срок, указанный для этой услуги.';
+  if(h) h.textContent='Заказ принят';
+  goal('order_success');
 }
 document.addEventListener('click',function(e){
   var payBtn=e.target.closest('#coPay');
