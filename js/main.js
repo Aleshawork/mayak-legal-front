@@ -640,10 +640,14 @@ function orderNum(){
   var d=new Date(), p=function(n){ return (n<10?'0':'')+n; };
   return 'МК-'+String(d.getFullYear()).slice(2)+p(d.getMonth()+1)+'-'+String(1000+Math.floor(Math.random()*8999)).slice(0,4);
 }
+/* Время — по Москве, а не в поясе браузера: UTC+3, без перехода на летнее с 2014 года.
+   Дата сдвигается на три часа и читается getUTC*-методами — поясу браузера здесь места нет. */
+var MSK_MS=3*3600*1000;
+function mskDate(ms){ return new Date(ms+MSK_MS); }
 function nowStr(){
   var M=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
-  var d=new Date(), p=function(n){ return (n<10?'0':'')+n; };
-  return d.getDate()+' '+M[d.getMonth()]+' '+d.getFullYear()+', '+p(d.getHours())+':'+p(d.getMinutes());
+  var d=mskDate(Date.now()), p=function(n){ return (n<10?'0':'')+n; };
+  return d.getUTCDate()+' '+M[d.getUTCMonth()]+' '+d.getUTCFullYear()+', '+p(d.getUTCHours())+':'+p(d.getUTCMinutes());
 }
 var order=null;
 try{ var _o=sessionStorage.getItem('mayak-order'); if(_o) order=JSON.parse(_o); }catch(x){}
@@ -902,9 +906,18 @@ function ddPay(caseId){
     throw err;
   });
 }
-function ddWhen(iso){
-  try{ var d=new Date(iso); if(isNaN(d)) return ''; var p=function(n){ return (n<10?'0':'')+n; };
-    return p(d.getDate())+'.'+p(d.getMonth()+1)+'.'+d.getFullYear()+', '+p(d.getHours())+':'+p(d.getMinutes()); }catch(x){ return ''; }
+/* Время согласия из ответа /api/dd/case — строка ISO. Прежний сервер отдавал число
+   микросекунд, и new Date() читал его как миллисекунды: «получено 24.07.58758».
+   Число принимается в любой из трёх единиц — по величине; показ — по Москве. */
+function ddWhen(v){
+  try{
+    var ms;
+    if(typeof v==='number'||/^\d+$/.test(String(v))){ var n=+v; ms=n>1e14?n/1000:(n>1e11?n:n*1000); }
+    else ms=Date.parse(v);
+    if(isNaN(ms)) return '';
+    var d=mskDate(ms), p=function(n){ return (n<10?'0':'')+n; };
+    return p(d.getUTCDate())+'.'+p(d.getUTCMonth()+1)+'.'+d.getUTCFullYear()+', '+p(d.getUTCHours())+':'+p(d.getUTCMinutes());
+  }catch(x){ return ''; }
 }
 
 /* ============ БЕСПЛАТНЫЙ РАЗБОР ОБЪЯВЛЕНИЯ ============ */
