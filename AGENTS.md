@@ -15,6 +15,7 @@ npm run preview # посмотреть собранный dist/
 
 - Страница = папка со `index.html`: `about/index.html` → URL `/about/`. Главная — корневой `index.html`.
 - Новая страница требует трёх правок: файл `slug/index.html`, слаг в массиве `pages` в `vite.config.js`, строка в `public/_redirects`.
+- Статьи блога — файлы `content/blog/*.md` (см. `content/blog/_КАК_ДОБАВИТЬ_СТАТЬЮ.md`). Страницы `blog/<slug>/`, карточки в `blog/index.html`, строки в `sitemap.xml` и `llms.txt` создаёт `scripts/blog.mjs` при `npm run build`; вручную их не править. SourceCraft собирает сайт каждый день в 09:00 МСК, статья выходит в свою дату.
 - `js/main.js` — единый скрипт для всех страниц. Один IIFE, ES5-стиль (`var`, `function`), без импортов и сборки модулей. Подключается как `<script type="module" src="../js/main.js">` — без `type="module"` Vite не соберёт его в бандл.
 - `css/main.css` — единый файл стилей.
 - `public/` копируется в `dist/` как есть: PDF в `public/otchety/`, а также `robots.txt`, `sitemap.xml`, `pricing.md`, `llms.txt`, `favicon.svg`, `404.html`.

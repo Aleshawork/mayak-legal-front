@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import { resolve, join } from 'path'
-import { existsSync } from 'fs'
+import { existsSync, readdirSync } from 'fs'
 
 const pages = [
   'about', 'checklists', 'property', 'build', 'realtors', 'reports', 'faq', 'blog',
@@ -8,6 +8,11 @@ const pages = [
   'account', 'checkout', 'unsubscribe', 'payment/result', '404',
   'blog/vypiska-egrn', 'blog/zadatok-i-avans', 'blog/bankrotstvo-prodavca', 'blog/matkapital-doli-detej', 'blog/uchastok-izhs'
 ]
+// Страницы статей, которые scripts/blog.mjs собрал из content/blog, подключаются сами.
+for (const d of readdirSync('blog', { withFileTypes: true })) {
+  const slug = 'blog/' + d.name
+  if (d.isDirectory() && existsSync(join('blog', d.name, 'index.html')) && !pages.includes(slug)) pages.push(slug)
+}
 
 function mpaSlashless() {
   const rewrite = (req) => {
