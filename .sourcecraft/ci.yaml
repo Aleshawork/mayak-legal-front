@@ -11,6 +11,12 @@ on:
     - workflows: [build-and-deploy]
       filter:
         branches: ["main"]
+  # Ежедневная сборка в 09:00 по Москве (06:00 UTC): выходят статьи блога,
+  # у которых в content/blog наступила дата публикации.
+  schedule:
+    - workflows: [build-and-deploy]
+      cron: "0 6 * * *"
+      description: Ежедневная публикация статей блога в 09:00 МСК
 
 tokens:
   yc:

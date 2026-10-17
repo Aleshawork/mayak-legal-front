@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/blog.mjs && vite build",
+    "blog": "node scripts/blog.mjs",
     "preview": "vite preview",
     "deploy:yc": "bash scripts/deploy-yandex.sh"
   },
