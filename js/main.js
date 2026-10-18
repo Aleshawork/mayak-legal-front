@@ -1261,7 +1261,7 @@ document.addEventListener('click',function(e){
 });
 
 /* ============ ЯНДЕКС МЕТРИКА (только после согласия на аналитику) ============ */
-var METRIKA_ID='113527974';  /* счётчик «Маяк» в metrika.yandex.ru; при согласии код в <head> страницы загружает его раньше */
+var METRIKA_ID='113551939';  /* счётчик «Маяк» в metrika.yandex.ru; при согласии код в <head> страницы загружает его раньше */
 function loadMetrika(){
   if(!METRIKA_ID) return;
   document.querySelectorAll('input,textarea').forEach(function(el){ el.classList.add('ym-disable-keys'); });
