@@ -1421,3 +1421,402 @@ flashIn();
 init(here());
 adFromQuery();
 })();
+
+/* ===== Новое оформление 2026-10: каталог описаний и поведение блоков ===== */
+/* Каталог услуг «Маяка». Единственное место, где хранятся названия, цены и сроки.
+   На боевом сайте эти данные приходят с сервера, и оплата берёт цену отсюда же. */
+window.MAYAK = {
+  services: {
+    ad: {
+      group: 're', name: 'Проверка объявления', price: 0, priceText: 'бесплатно', time: 'до 30 минут',
+      short: 'Разбор текста и фотографий объявления',
+      inc: ['Разбор текста и фотографий объявления',
+            'Признаки риска в тексте, например срочная продажа, торг, наследство, продажа по доверенности или доли',
+            'Вопросы, которые стоит задать продавцу, и проверка, с которой имеет смысл начать'],
+      no: 'Документы продавца мы не разбираем. Это первичный разбор, он не заменяет проверку объекта.',
+      get: 'короткий отчёт на почту.',
+      fields: ['link', 'mail']
+    },
+    obj: {
+      group: 're', name: 'Проверка объекта', price: 990, priceText: 'от 990 ₽', time: 'до 2 календарных дней',
+      short: 'Квартира, дом, участок или помещение по сведениям ЕГРН',
+      tiers: ['obj-fast', 'obj-deep', 'obj-full']
+    },
+    'obj-fast': {
+      group: 're', name: 'Проверка объекта · экспресс', tierName: 'Экспресс', price: 990, priceText: '990 ₽', time: 'до 1 календарного дня',
+      inc: ['Открытые сведения ЕГРН об объекте, в том числе кадастровый номер, площадь, назначение и кадастровая стоимость',
+            'Есть ли в реестре записи об ограничениях',
+            'Сколько лет объект принадлежит нынешнему владельцу',
+            'Возраст и износ многоквартирного дома, признан ли он аварийным',
+            'Реновация и переселение для Москвы, Санкт-Петербурга и их областей'],
+      get: 'отчёт на почту. Подходит, чтобы быстро отсеять явно проблемные варианты.',
+      fields: ['addr', 'mail']
+    },
+    'obj-deep': {
+      group: 're', name: 'Проверка объекта · стандартная', tierName: 'Стандартная', price: 1990, priceText: '1 990 ₽', time: 'до 2 календарных дней', best: true,
+      inc: ['Всё из экспресс-проверки',
+            'Сведения ЕГРН по запросу в Росреестр о виде ограничений, ипотеке, аренде, арестах и запретах',
+            'Отметки о спорах и притязаниях третьих лиц',
+            'Изъятие для публичных нужд, публичный сервитут, объекты культурного наследия',
+            'Образован ли объект разделом, объединением или выделом'],
+      get: 'отчёт на почту. Эту проверку мы советуем заказывать перед авансом.',
+      fields: ['addr', 'mail']
+    },
+    'obj-full': {
+      group: 're', name: 'Проверка объекта · расширенная', tierName: 'Расширенная', price: 2990, priceText: '2 990 ₽', time: 'до 2 календарных дней',
+      inc: ['Всё из стандартной проверки',
+            'История перехода прав, включая сроки владения, приватизацию, дарение, наследство и решения суда',
+            'Разбор документов продавца, которые Вы загрузите, и сверка их со сведениями ЕГРН'],
+      get: 'отчёт на почту. Чем больше документов Вы приложите, тем полнее проверка.',
+      fields: ['addr', 'mail', 'files']
+    },
+    'sel-full': {
+      group: 're', name: 'Проверка продавца', price: 1990, priceText: '1 990 ₽', time: 'до 1 календарного дня',
+      short: 'Банкротство, долги, суды, брак, дети, доверенности',
+      inc: ['Реестр банкротств и картотека судебных дел', 'Исполнительные производства',
+            'Признаки недавней смены собственника, например дарение незадолго до продажи',
+            'Семейное положение и необходимость согласия супруга',
+            'Доли несовершеннолетних и использование материнского капитала',
+            'Доверенности и сведения о дееспособности'],
+      no: 'Сам объект в эту проверку не входит.',
+      get: 'отчёт по продавцу с рекомендациями по схеме расчётов.',
+      fields: ['seller', 'mail']
+    },
+    deal: {
+      group: 're', name: 'Проверка объекта и продавца', price: 4450, priceText: '4 450 ₽', time: 'до 2 календарных дней', save: 'выгоднее на 530 ₽',
+      short: 'Расширенная проверка объекта и проверка продавца в одном отчёте',
+      inc: ['Расширенная проверка объекта целиком', 'Проверка продавца целиком',
+            'Риски, которые видны только при сопоставлении объекта и продавца',
+            'Общий вывод о том, возможна ли сделка, возможна с условиями или не рекомендуется',
+            'Обоснование для торга по найденным замечаниям'],
+      no: 'Договор купли-продажи готовим отдельно.',
+      get: 'один отчёт вместо двух. По отдельности эти проверки стоили бы 4 980 ₽.',
+      fields: ['addr', 'seller', 'mail', 'files']
+    },
+    dkp: {
+      group: 're', name: 'Договор купли-продажи', fullName: 'Составление и экспертиза договора купли-продажи', price: 2990, priceText: '2 990 ₽', time: 'до 1 календарного дня',
+      short: 'Проверим присланный договор или составим свой',
+      inc: ['Проверка присланного договора либо разработка своего', 'Формулировки под каждый выявленный риск',
+            'Условия расчётов, сроки передачи, ответственность сторон', 'Финальная версия, готовая к подписанию'],
+      no: 'Ведение сделки до регистрации права в эту услугу не входит.',
+      get: 'договор в формате docx и записку о том, что изменено и почему.',
+      fields: ['files', 'mail']
+    },
+    consult: {
+      group: 're', name: 'Консультация с юристом онлайн', price: 5000, priceText: '5 000 ₽', time: '1 час',
+      short: 'Видеовстреча по отчёту, договору или ситуации',
+      inc: ['Видеовстреча до 1 часа в удобном для Вас сервисе', 'Разбор отчёта, договора или ситуации целиком',
+            'Ответы на вопросы вслух', 'Письменное резюме после встречи'],
+      get: 'ссылку на встречу заранее и краткое резюме с рекомендациями после неё.',
+      fields: ['topic', 'mail']
+    },
+    'deal-all': {
+      group: 're', name: 'Полное сопровождение сделки', price: 7000, priceText: '7 000 ₽', time: 'до регистрации права', save: 'выгоднее на 970 ₽',
+      short: 'Проверки, договор, расчёты и регистрация',
+      inc: ['Расширенная проверка объекта и проверка продавца', 'Договор купли-продажи',
+            'Согласование условий с другой стороной', 'Подготовка к безопасным расчётам',
+            'Пакет документов для регистрации', 'Ведение сделки до записи о переходе права'],
+      no: 'Альтернативные и цепочечные сделки, ипотеку и аренду для бизнеса считаем отдельно после короткой консультации.',
+      get: 'сопровождение до регистрации права. По отдельности эти услуги стоили бы 7 970 ₽.',
+      fields: ['addr', 'mail', 'phone']
+    },
+    land: {
+      group: 'izhs', name: 'Проверка участка под ИЖС', fullName: 'Проверка земельного участка под ИЖС', price: 2490, priceText: '2 490 ₽', time: 'до 1 календарного дня',
+      short: 'Можно ли строить дом и что этому помешает',
+      inc: ['Категория земли и вид разрешённого использования', 'Границы и координаты по данным ЕГРН',
+            'Наложение границ на соседние участки', 'Охранные и защитные зоны', 'Обременения, аресты, сервитуты',
+            'Подъездные пути и возможность подключения коммуникаций', 'Градостроительные ограничения по высоте и отступам'],
+      no: 'Продавца участка проверяем отдельно.',
+      get: 'отчёт о том, можно ли строить дом на этом участке и что этому помешает.',
+      fields: ['cad', 'mail']
+    },
+    builder: {
+      group: 'izhs', name: 'Проверка застройщика, подрядчика', price: 1990, priceText: '1 990 ₽', time: 'до 1 календарного дня',
+      short: 'Реестры, суды, долги и история сорванных сроков',
+      inc: ['Реестры юридических лиц и банкротств', 'Картотека арбитражных дел', 'Исполнительные производства',
+            'Разрешение на строительство и проектная декларация', 'Членство в саморегулируемой организации',
+            'История сорванных сроков по прошлым объектам'],
+      no: 'Договор подряда проверяем отдельно.',
+      get: 'отчёт с выводом по каждому пункту и рекомендацией, работать с этим подрядчиком или нет.',
+      fields: ['company', 'mail']
+    },
+    podryad: {
+      group: 'izhs', name: 'Договор подряда', fullName: 'Составление и экспертиза договора подряда', price: 4990, priceText: '4 990 ₽', time: 'до 1 календарного дня',
+      short: 'Этапы, сроки, приёмка, гарантии и удержания',
+      inc: ['Проверка присланного договора либо разработка своего', 'Этапы, сроки и порядок приёмки',
+            'Ответственность за недостатки и гарантийные обязательства', 'Порядок удержания оплаты до устранения замечаний',
+            'Итоговый вариант, готовый к подписанию'],
+      no: 'Контроль стройки и приёмка работ в эту услугу не входят.',
+      get: 'договор подряда в формате docx и записку о внесённых изменениях.',
+      fields: ['files', 'mail']
+    },
+    priemka: {
+      group: 'izhs', name: 'Контроль стройки и приёмка', price: 49990, priceText: '49 990 ₽', time: '12 месяцев',
+      short: 'Этапы, акты, недостатки, претензии',
+      inc: ['Контроль этапов и фиксация отклонений', 'Акты приёмки этапов и итоговая приёмка',
+            'Осмотр и фиксация недостатков', 'Независимая строительная экспертиза при необходимости',
+            'Претензия и переговоры с подрядчиком', 'Иск и представительство в суде'],
+      no: 'Проверку подрядчика и договор подряда заказывают отдельно.',
+      get: 'сопровождение стройки в течение двенадцати месяцев.',
+      fields: ['addr', 'mail', 'phone']
+    },
+    'build-all': {
+      group: 'izhs', name: 'Полное сопровождение ИЖС', price: 55000, priceText: '55 000 ₽', time: '12 месяцев', save: 'выгоднее на 4 460 ₽',
+      short: 'Участок, подрядчик, договор, стройка и приёмка',
+      inc: ['Проверка земельного участка', 'Проверка застройщика или подрядчика', 'Договор подряда',
+            'Контроль стройки и приёмка', 'Досудебное урегулирование спора'],
+      no: 'Цена рассчитана на двенадцать месяцев. Если стройка идёт дольше, стоимость растёт соразмерно сроку.',
+      get: 'все пять шагов одной услугой. По отдельности они стоили бы 59 460 ₽.',
+      fields: ['cad', 'mail', 'phone']
+    }
+  },
+  /* пакеты для риелторов: цена пакета из прайса сайта */
+  packs: {
+    sizes: [{ n: 5, d: 5 }, { n: 25, d: 10 }, { n: 100, d: 15 }],
+    rows: [
+      { id: 'obj-fast', name: 'Проверка объекта · экспресс', one: 990, fin: [4700, 22000, 84000] },
+      { id: 'obj-deep', name: 'Проверка объекта · стандартная', one: 1990, fin: [9400, 44500, 169000] },
+      { id: 'obj-full', name: 'Проверка объекта · расширенная', one: 2990, fin: [14200, 67000, 254000] },
+      { id: 'sel-full', name: 'Проверка продавца', one: 1990, fin: [9400, 44500, 169000] },
+      { id: 'deal', name: 'Проверка объекта и продавца', one: 4450, fin: [21000, 100000, 375000] },
+      { id: 'land', name: 'Проверка участка под ИЖС', one: 2490, fin: [11800, 56000, 211500] },
+      { id: 'builder', name: 'Проверка застройщика, подрядчика', one: 1990, fin: [9400, 44500, 169000] }
+    ]
+  }
+};
+/* «Маяк», новое оформление: поведение блоков. Заказы, оплата, cookie, подбор услуги,
+   поиск по вопросам и блог работают на основном скрипте сайта, этот файл их не трогает. */
+(function () {
+  'use strict';
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var LX = 0.509, LY = 0.217;                       // центр фонаря в знаке маяка
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return [].slice.call((r || document).querySelectorAll(s)); };
+  var C = window.MAYAK || { services: {}, packs: { rows: [], sizes: [] } };
+  var rub = function (n) { return n === 0 ? 'бесплатно' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ₽'; };
+  var ready = function (cb) { if (document.fonts && document.fonts.ready) document.fonts.ready.then(cb); else cb(); };
+  var lamp = function (svg, box) { var r = svg.getBoundingClientRect(), b = box.getBoundingClientRect(); return { x: r.left - b.left + r.width * LX, y: r.top - b.top + r.height * LY }; };
+
+  /* ---------- шапка ---------- */
+  var head = $('.head');
+  if (head) {
+    var s = document.createElement('div');
+    s.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:10px;pointer-events:none';
+    document.body.prepend(s);
+    new IntersectionObserver(function (es) { head.classList.toggle('scrolled', !es[0].isIntersecting); }).observe(s);
+    var hf = $('#heroForm');
+    if (hf) {
+      head.classList.add('hide-cta');
+      new IntersectionObserver(function (es) { head.classList.toggle('hide-cta', es[0].isIntersecting); }, { rootMargin: '-80px 0px 0px 0px' }).observe(hf);
+    }
+  }
+
+  /* ---------- первый экран ---------- */
+  var hero = $('#hero');
+  if (hero) {
+    var vis = $('#heroVis'), lh = $('#heroLh svg'), word = $('.word', hero);
+    var poly = $('#heroBeamPoly'), bsvg = $('#heroBeam'), grad = $('#hbG');
+    var follow = null, t0 = performance.now();
+    var wedge = function (p, ux, uy, L, spread) {
+      var c = Math.cos(spread), sn = Math.sin(spread);
+      var a = { x: ux * c - uy * sn, y: ux * sn + uy * c }, b = { x: ux * c + uy * sn, y: -ux * sn + uy * c };
+      return [p.x - uy * 3, p.y + ux * 3, p.x + a.x * L, p.y + a.y * L, p.x + b.x * L, p.y + b.y * L, p.x + uy * 3, p.y - ux * 3].join(' ');
+    };
+    var frame = function (now) {
+      var hb = hero.getBoundingClientRect(), p = lamp(lh, hero);
+      bsvg.setAttribute('viewBox', '0 0 ' + hb.width + ' ' + hb.height);
+      var tx, ty, L, spread = 0.085;
+      {                                                  // луч по слову «Маяк»
+        var wb = word.getBoundingClientRect();
+        if (follow) { tx = follow.x; ty = follow.y; }
+        else {
+          var k = (Math.sin((now - t0) / 2600 - Math.PI / 2) + 1) / 2;
+          tx = wb.left - hb.left - 120 + (wb.width + 160) * (1 - k); ty = wb.top - hb.top + wb.height * 0.52;
+          tx = Math.min(tx, p.x - 70);
+        }
+        L = Math.hypot(hb.width, hb.height) * 1.2;
+      }
+      var dx = tx - p.x, dy = ty - p.y, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+      poly.setAttribute('points', wedge(p, ux, uy, L, spread));
+      grad.setAttribute('x1', p.x); grad.setAttribute('y1', p.y); grad.setAttribute('x2', p.x + ux * L); grad.setAttribute('y2', p.y + uy * L);
+      {                                                  // пятно света там, где луч пересекает слово
+        var w2 = word.getBoundingClientRect(), wy = w2.top - hb.top + w2.height * 0.52;
+        var t = Math.abs(uy) > 0.0001 ? (wy - p.y) / uy : -1;
+        if (t > 0) {
+          word.style.setProperty('--sx', (p.x + ux * t - (w2.left - hb.left)) + 'px');
+          word.style.setProperty('--sy', (wy - (w2.top - hb.top)) + 'px');
+          word.style.setProperty('--rw', Math.max(80, t * Math.tan(spread) * 1.6) + 'px');
+        }
+      }
+      if (!reduce) requestAnimationFrame(frame);
+    };
+    hero.addEventListener('pointermove', function (e) {
+      if (e.pointerType === 'touch') return;
+      var hb = hero.getBoundingClientRect(); follow = { x: e.clientX - hb.left, y: e.clientY - hb.top };
+    });
+    hero.addEventListener('pointerleave', function () { follow = null; t0 = performance.now() - 2600 * Math.PI / 2; });
+    // на телефоне маяк стоит справа от слова, фонарь на высоте букв
+    var placeLh = function () {
+      if (window.innerWidth > 860) { vis.style.top = ''; return; }
+      var hi = $('.hero-in', hero).getBoundingClientRect(), wb = word.getBoundingClientRect(), lb = lh.getBoundingClientRect();
+      vis.style.top = Math.max(0, wb.top - hi.top + wb.height * 0.5 - lb.height * 0.217) + 'px';
+    };
+    window.addEventListener('resize', placeLh);
+    ready(function () { placeLh(); requestAnimationFrame(frame); });
+    window.addEventListener('resize', function () { if (reduce) frame(performance.now()); });
+
+    // ссылка из первого экрана переходит в рабочую форму проверки объявления
+    var trig = document.createElement('button');
+    trig.type = 'button'; trig.hidden = true; trig.dataset.form = 'svc'; trig.dataset.svc = 'ad'; trig.dataset.goal = 'hero_ad';
+    document.body.appendChild(trig);
+    $('#heroForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var v = $('#heroLink').value.trim(); trig.click();
+      if (!v) return;
+      var n = 0, t = setInterval(function () {
+        var f = $('#mForm [name="link"]');
+        if (f) { f.value = v; f.dispatchEvent(new Event('input', { bubbles: true })); clearInterval(t); }
+        if (++n > 40) clearInterval(t);
+      }, 50);
+    });
+  }
+
+  /* ---------- объявление глазами юриста ---------- */
+  var marks = $$('.ad-text mark'), notes = $$('.note');
+  if (marks.length) {
+    var cur = 1, auto = true, timer;
+    var show = function (n) { marks.forEach(function (m) { m.classList.toggle('on', m.dataset.n == n); }); notes.forEach(function (x) { x.classList.toggle('on', x.dataset.n == n); }); };
+    var stop = function () { auto = false; clearInterval(timer); };
+    marks.concat(notes).forEach(function (el) {
+      el.addEventListener('mouseenter', function () { stop(); show(el.dataset.n); });
+      el.addEventListener('click', function () { stop(); show(el.dataset.n); });
+    });
+    show(1);
+    if (!reduce) new IntersectionObserver(function (es) {
+      if (es[0].isIntersecting && auto && !timer) timer = setInterval(function () { cur = cur % marks.length + 1; show(cur); }, 2600);
+    }, { threshold: 0.4 }).observe($('.ad-card'));
+  }
+
+  /* ---------- что видно с маяка: подсветка без сдвига вёрстки ---------- */
+  var list = $('#riskList'), radar = $('#radar');
+  if (list && radar) {
+    var items = $$('.risk', list), rot = $('#radarRot'), rpoly = $('#radarPoly'), rsvg = $('#radarBeam'), rlh = $('.radar-lh svg', radar);
+    var rl = function () {
+      var b = radar.getBoundingClientRect(), lp = lamp(rlh, radar);
+      rsvg.setAttribute('viewBox', '0 0 ' + b.width + ' ' + b.height);
+      var sp = b.height * 0.17;
+      rpoly.setAttribute('points', [lp.x, lp.y - 4, b.width + 40, lp.y - sp, b.width + 40, lp.y + sp, lp.x, lp.y + 4].join(' '));
+      rot.style.transformOrigin = lp.x + 'px ' + lp.y + 'px';
+    };
+    var curIt = null;
+    var act = function (it) {
+      if (it === curIt) return; curIt = it;
+      items.forEach(function (x) { x.classList.toggle('on', x === it); });
+      rot.style.transform = 'rotate(' + (+it.dataset.a || 0) + 'deg)';
+    };
+    ready(rl); window.addEventListener('resize', rl); act(items[0]);
+    var so = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) act(e.target); });
+    }, { rootMargin: '-40% 0px -55% 0px' });
+    items.forEach(function (it) { so.observe(it); it.addEventListener('mouseenter', function () { act(it); }); });
+  }
+
+  /* ---------- путь сделки: заполнение линии и подсветка шагов под скобкой ---------- */
+  $$('.tl').forEach(function (tl) {
+    new IntersectionObserver(function (es, o) { if (es[0].isIntersecting) { tl.style.setProperty('--p', 1); tl.classList.add('go'); o.disconnect(); } }, { threshold: 0.3 }).observe(tl);
+    var nodes = $$('.tl-n', tl);
+    $$('.br', tl).forEach(function (br) {
+      var on = function (v) { var a = +br.dataset.from, b = +br.dataset.to; nodes.forEach(function (n, i) { n.classList.toggle('hl', v && i + 1 >= a && i + 1 <= b); }); tl.classList.toggle('hl-on', v); };
+      br.addEventListener('mouseenter', function () { on(true); });
+      br.addEventListener('mouseleave', function () { on(false); });
+      br.addEventListener('focusin', function () { on(true); });
+      br.addEventListener('focusout', function () { on(false); });
+    });
+  });
+
+  /* ---------- вкладки ---------- */
+  $$('.x .tabs').forEach(function (box) {
+    var tabs = $$('.tab', box), ind = $('.tabs-ind', box);
+    var place = function (t) { if (!t.offsetWidth) return; ind.style.width = t.offsetWidth + 'px'; ind.style.transform = 'translateX(' + t.offsetLeft + 'px)'; };
+    var cur = function () { return tabs.filter(function (t) { return t.getAttribute('aria-selected') === 'true'; })[0] || tabs[0]; };
+    var sel = function (t) {
+      tabs.forEach(function (x) { var on = x === t; x.setAttribute('aria-selected', on); var p = document.getElementById(x.getAttribute('aria-controls')); if (p) p.hidden = !on; });
+      place(t);
+    };
+    tabs.forEach(function (t) { t.addEventListener('click', function () { sel(t); }); });
+    ready(function () { place(cur()); });
+    window.addEventListener('resize', function () { place(cur()); });
+  });
+
+  /* ---------- строки услуг: раскрывается одна, предыдущая сворачивается ---------- */
+  var li = function (x) { return '<li><i class="ph-bold ph-check"></i><span>' + x + '</span></li>'; };
+  var ARR = '<span class="ar"><i class="ph ph-arrow-right"></i></span>';
+  function rowBody(id) {
+    var s = C.services[id]; if (!s) return '';
+    var h = '<div class="in">';
+    if (s.tiers) {
+      h += '<p class="meta"><span>Три варианта, они различаются составом проверки.</span></p><div class="tiers" role="radiogroup" aria-label="Вариант проверки">';
+      s.tiers.forEach(function (tid) {
+        var t = C.services[tid];
+        h += '<button type="button" class="tier' + (t.best ? ' on' : '') + '" role="radio" aria-checked="' + (!!t.best) + '" data-tier="' + tid + '">' + (t.best ? '<span class="best">Перед авансом</span>' : '') +
+          '<b>' + t.tierName + '</b><span class="tp">' + t.priceText + '</span><small>' + t.time + '</small></button>';
+      });
+      h += '</div><ul class="tier-inc">' + C.services['obj-deep'].inc.map(li).join('') + '</ul>';
+      return h + '<button class="btn b-amber b-sm" type="button" data-form="svc" data-svc="obj-deep">Оформить проверку' + ARR + '</button></div>';
+    }
+    h += '<div class="meta"><span>Срок <b>' + s.time + '</b></span><span>Цена <b>' + s.priceText + '</b></span></div><ul>' + s.inc.map(li).join('') + '</ul>';
+    if (s.no) h += '<p class="no">' + s.no + '</p>';
+    if (s.get) h += '<p class="get"><b>Вы получите</b> ' + s.get + '</p>';
+    return h + '<button class="btn b-amber b-sm" type="button" data-form="svc" data-svc="' + id + '">' + (id === 'consult' ? 'Записаться' : id === 'ad' ? 'Проверить бесплатно' : 'Оформить') + ARR + '</button></div>';
+  }
+  $$('.row[data-svc]').forEach(function (row) {
+    var b = $('.row-b > div', row); if (b && !b.innerHTML.trim()) b.innerHTML = rowBody(row.dataset.svc);
+    var hd = $('.row-h', row);
+    hd.addEventListener('click', function () {
+      var o = !row.classList.contains('open');
+      $$('.row.open', row.parentNode).forEach(function (x) { x.classList.remove('open'); $('.row-h', x).setAttribute('aria-expanded', 'false'); });
+      row.classList.toggle('open', o); hd.setAttribute('aria-expanded', o);
+    });
+  });
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('.tier'); if (!t) return;
+    var box = t.closest('.in');
+    $$('.tier', box).forEach(function (x) { var on = x === t; x.classList.toggle('on', on); x.setAttribute('aria-checked', on); });
+    $('.tier-inc', box).innerHTML = C.services[t.dataset.tier].inc.map(li).join('');
+    $('[data-svc]', box).dataset.svc = t.dataset.tier;
+  });
+
+  /* ---------- частые вопросы на главной и страница вопросов: открыт один ответ ---------- */
+  $$('.x .faq').forEach(function (f) {
+    $$('details', f).forEach(function (d) {
+      d.addEventListener('toggle', function () { if (d.open) $$('details[open]', f).forEach(function (x) { if (x !== d) x.open = false; }); });
+    });
+  });
+  var fb = $('#faqBody');
+  if (fb) fb.addEventListener('click', function (e) {
+    var b = e.target.closest('.acc-b'); if (!b) return;
+    var me = b.closest('.acc-i');
+    setTimeout(function () { if (me.classList.contains('open')) $$('.acc-i.open', fb).forEach(function (x) { if (x !== me) { var bb = $('.acc-b', x); if (bb) bb.click(); else x.classList.remove('open'); } }); }, 0);
+  });
+
+  /* ---------- калькулятор пакетов для риелторов ---------- */
+  var calc = $('#calc');
+  if (calc) {
+    var ci = { row: 1, size: 1 };
+    var rowsBox = $('#calcRows', calc), sizeBox = $('#calcSizes', calc);
+    rowsBox.innerHTML = C.packs.rows.map(function (r, i) { return '<button type="button" class="opt" aria-pressed="' + (i === ci.row) + '" data-i="' + i + '">' + r.name + '</button>'; }).join('');
+    sizeBox.innerHTML = C.packs.sizes.map(function (s, i) { return '<button type="button" class="opt" aria-pressed="' + (i === ci.size) + '" data-i="' + i + '">' + s.n + ' проверок · −' + s.d + '%</button>'; }).join('');
+    var upd = function () {
+      var r = C.packs.rows[ci.row], s = C.packs.sizes[ci.size], full = r.one * s.n, fin = r.fin[ci.size];
+      $('#cP').textContent = rub(fin); $('#cS').textContent = rub(full); $('#cSave').textContent = 'Выгода ' + rub(full - fin);
+      $('#cOne').textContent = 'Одна проверка в пакете стоит ' + rub(Math.round(fin / s.n)) + ' вместо ' + rub(r.one) + '.';
+      $('#cName').textContent = 'Пакет на ' + s.n + ' проверок, ' + r.name.toLowerCase();
+      var subj = 'Пакет на ' + s.n + ' проверок', body = 'Здравствуйте! Хочу купить пакет на ' + s.n + ' проверок.\nВид проверки: ' + r.name + '\nЭлектронная почта для отчётов: \nИмя или название агентства: ';
+      $('#cBuy').href = 'mailto:sales@mayak-legal.ru?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body);
+    };
+    var bind = function (box, key) {
+      box.addEventListener('click', function (e) { var b = e.target.closest('.opt'); if (!b) return; ci[key] = +b.dataset.i; $$('.opt', box).forEach(function (x) { x.setAttribute('aria-pressed', x === b); }); upd(); });
+    };
+    bind(rowsBox, 'row'); bind(sizeBox, 'size'); upd();
+  }
+})();
