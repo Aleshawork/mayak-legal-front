@@ -2475,3 +2475,224 @@ a.doc-row{text-decoration:none;color:inherit}
 .dd-chip.ch-soon{cursor:not-allowed;color:var(--faint);background:transparent}
 .dd-chip.ch-soon:hover{box-shadow:inset 0 0 0 1px var(--hair)}
 .ch-badge{margin-left:8px;padding:2px 7px;border-radius:7px;background:var(--wash);color:var(--ink2);font-style:normal;font-size:11.5px;font-weight:600;letter-spacing:.02em}
+
+/* ===== Правки 27.10.2026: точечные замечания и телефонная версия ===== */
+
+/* «Объявление глазами юриста»: иллюстрации вместо заглушек */
+.x .ad-pics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.x .ad-pics .ad-pic{aspect-ratio:6/5;border-radius:14px;overflow:hidden;background:#EEF5F8;box-shadow:inset 0 0 0 1px rgba(13,59,84,.08);display:block;padding:0}
+.x .ad-pics .ad-pic svg{display:block;width:100%;height:100%}
+.x .ad-top{flex-wrap:wrap;row-gap:8px}
+.x .ad-price{white-space:nowrap}
+
+/* Услуги и цены: выгодные предложения заметнее */
+.x .row:has(.row-p em){position:relative;background:linear-gradient(105deg,#FFF3DE 0%,#FFFAF2 55%,#fff 100%);box-shadow:0 0 0 1.5px rgba(242,169,59,.8),0 22px 40px -28px rgba(200,127,23,.7)}
+.x .row:has(.row-p em)::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:0 4px 4px 0;background:linear-gradient(180deg,#F2A93B,#C87F17)}
+.x .row:has(.row-p em) .row-h b::after{content:"Выгодно";display:inline-block;vertical-align:2px;margin-left:10px;padding:3px 10px;border-radius:999px;background:#F2A93B;color:#2A1B06;font-size:11.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;box-shadow:0 6px 14px -8px rgba(200,127,23,.9)}
+.x .row:has(.row-p em) .row-p{color:var(--deep)}
+.x .row:has(.row-p em) .row-p em{display:block;margin-top:4px;color:#9A5D0C;font-style:normal;font-weight:700;font-size:13px}
+.x .row:has(.row-p em):hover{box-shadow:0 0 0 2px #F2A93B,0 26px 44px -26px rgba(200,127,23,.8)}
+
+/* «Как проходит заказ» и «Риелторам»: описания шагов обычным начертанием */
+.x .st p,.st p{font-weight:400!important}
+
+/* Цены в пакетах: без зелёных плашек «выгода» */
+.pk-save{display:none!important}
+
+/* Пример отчёта: выноски не заходят на текст слева */
+@media (min-width:901px){
+  .x .paper{padding-left:clamp(110px,10vw,150px)!important}
+  .x .paper .pin{left:14px!important;right:auto!important}
+}
+
+/* Команда: вопросы на одном уровне */
+@media (min-width:761px){
+  .fd2{grid-template-rows:auto auto 1fr;row-gap:0}
+  .fd-col{display:grid!important;grid-row:span 3;grid-template-rows:subgrid;row-gap:20px;align-content:start}
+}
+
+/* Шапка: равные промежутки между логотипом, разделами и кнопкой */
+@media (min-width:1101px){
+  .head .island{justify-content:space-between}
+  .head .nav{display:contents!important}
+  .head .nav-drop,.head .nav>a{margin:0!important}
+  .head .head-cta2{margin-left:0!important}
+}
+
+/* Свет фонаря на первом экране */
+.x .hv .hero-lh::after{content:"";position:absolute;left:50.9%;top:21.7%;width:46%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,rgba(255,196,92,.75) 0,rgba(242,169,59,.28) 38%,rgba(242,169,59,0) 70%);animation:xglow 2.8s ease-in-out infinite;pointer-events:none;z-index:-1}
+@keyframes xglow{0%,100%{opacity:.55;transform:translate(-50%,-50%) scale(.85)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}}
+@media (prefers-reduced-motion:reduce){.x .hv .hero-lh::after{animation:none}}
+
+/* ---------- Телефон: до 760 px ---------- */
+@media (max-width:760px){
+  body{-webkit-text-size-adjust:100%}
+  .x{font-size:16px}
+  /* текст не мельче 14 px, основной 16 px */
+  .x p,.x li{font-size:max(16px,1em)}
+  .x small,.x .small,.x .hint{font-size:14px}
+  .x .tl-k{font-size:12.5px}
+  .x .tag{font-size:12.5px;padding:4px 10px}
+  .x .ad-tag{font-size:13px}
+  .agree span,.agree .ctc-link{font-size:14.5px!important;line-height:1.5}
+  .agree .box{width:24px;height:24px;flex:none}
+  .agree>span:last-child{display:block}
+  .agree .ctc-link{display:inline;padding:0}
+  /* кнопки и метки под палец */
+  .x .chip,.x .tabs button,.x .tl-tabs button,.x .tab{min-height:44px;padding-inline:18px;display:inline-flex;align-items:center}
+  .btn{min-height:48px}
+  .cl .btn,.mk-form .submit{white-space:normal;text-align:left;line-height:1.3}
+  .cl,.picker{min-width:0;max-width:100%}
+  .x .row-h{min-height:64px}
+  /* первый экран */
+  .x .hv .word{font-size:clamp(76px,24vw,104px)!important;letter-spacing:-.04em}
+  .x .hv .tagline{font-size:clamp(24px,7vw,30px)!important}
+  .x .hv .hero-sub{font-size:17px}
+  .x #hbG stop:first-child{stop-opacity:.95}
+  .x #hbG stop:nth-child(2){stop-opacity:.4}
+  .x .hero-form input{min-height:52px;font-size:16px}
+  .x .hero-note{gap:10px}
+  /* объявление */
+  .x .ad-price{font-size:24px}
+  .x .ad-title{font-size:18px}
+  .x .ad-text{font-size:16px;line-height:1.75}
+  /* что видно с маяка: маяк остаётся на экране, пока листаете риски */
+  .x .risks-sticky{display:contents}
+  .x .radar{position:sticky;top:64px;z-index:3;width:156px!important;margin:4px auto 6px!important}
+  .x .radar::before{content:"";position:absolute;left:calc(50% - 50vw);right:calc(50% - 50vw);top:-10px;bottom:-10px;background:linear-gradient(180deg,var(--bg2,#EEF5F8) 78%,rgba(238,245,248,0));z-index:-1}
+  .x .risk-list.calm .risk p{opacity:.72}
+  .x .risk-list.calm .risk.on p{opacity:1}
+  .x .risk h3{font-size:22px}
+  /* отчёт и путь */
+  .x .rep h2,.x .sec-h h2{font-size:clamp(32px,9vw,40px)}
+  .x .tl-n h3{font-size:20px}
+  .x .br-lab b{font-size:20px}
+  /* подвал короче: разделы в две колонки */
+  .x .foot-g>div:nth-child(2){display:grid;grid-template-columns:1fr 1fr;column-gap:16px}
+  .x .foot-g>div:nth-child(2) h4{grid-column:1/-1}
+  .x .foot .l{padding-block:6px;display:block}
+}
+@media (max-width:380px){
+  .x .hv .word{font-size:clamp(68px,23vw,90px)!important}
+  .x .ad-pics{gap:6px}
+}
+
+/* ===== Телефон, 27.10.2026, второй проход ===== */
+/* выгодные строки в списке /property/ и /build/: не прижаты к краю */
+.x .pl .row:has(.row-p em){margin-inline:-14px;border-radius:18px;border-top-color:transparent}
+.x .pl .row:has(.row-p em)+.row{border-top-color:transparent}
+.x .pl .row:has(.row-p em) .row-h{padding-inline:22px 16px}
+.x .pl .row:has(.row-p em) .row-b .in{margin-inline:22px 16px}
+
+/* сравнение вариантов проверки: переключатель столбцов на телефоне */
+.cmp-tabs{display:none}
+@media (max-width:760px){
+  .cmp-tabs{display:flex;gap:6px;padding:5px;margin:0 0 14px;border-radius:999px;background:var(--paper,#fff);box-shadow:inset 0 0 0 1px var(--hair2,#E3ECF1);position:sticky;top:66px;z-index:5}
+  .cmp-tabs button{flex:1;min-height:44px;border-radius:999px;font-weight:700;font-size:15px;color:var(--ink2);transition:background .25s,color .25s}
+  .cmp-tabs button[aria-pressed="true"]{background:var(--deep);color:#fff}
+  .x .scroll-x:has(.cmp[data-col]){overflow:visible}
+  .x .cmp[data-col]{min-width:0!important;width:100%}
+  .x .cmp[data-col] tr>*:not(:first-child){display:none}
+  .x .cmp[data-col="2"] tr>*:nth-child(2),.x .cmp[data-col="3"] tr>*:nth-child(3),.x .cmp[data-col="4"] tr>*:nth-child(4){display:table-cell;width:34%}
+  .x .cmp[data-col] th,.x .cmp[data-col] td{padding:14px 16px;font-size:16px}
+  .x .cmp[data-col] thead th b{font-size:20px}
+  .x .cmp[data-col] thead th small{font-size:14px}
+}
+
+/* подвал на телефоне: длинный перечень документов свёрнут */
+@media (max-width:760px){
+  .x .foot .fold h4{display:flex;align-items:center;justify-content:space-between;min-height:48px;margin:0;cursor:pointer}
+  .x .foot .fold h4::after{content:"";width:9px;height:9px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-3px);transition:transform .3s;margin-right:6px}
+  .x .foot .fold.open h4::after{transform:rotate(-135deg) translateY(-2px)}
+  .x .foot .fold:not(.open)>:not(h4){display:none!important}
+  .x .foot .l{min-height:44px;display:flex!important;align-items:center;padding-block:0}
+  .x .foot .mails2 span{font-size:16px}
+  .x .foot .req2 span{font-size:14px}
+  .x .foot .req2 a{display:inline-block;padding-block:10px}
+  .x .foot .soc2 img{width:48px;height:48px}
+}
+
+@media (max-width:760px){
+  /* первый экран ближе к шапке */
+  .x .hero{padding-top:8px}
+  /* единый размер заголовков разделов */
+  #picker-sec h2,.picker-wrap h2,.x h2.rv{font-size:clamp(30px,8.6vw,38px);line-height:1.08;letter-spacing:-.03em}
+  /* вторичный текст не мельче 15 px */
+  .x .tl-t,.x .row-t,.x .pl .row-t,.x .get,.x .no,.x .row-h small,.x .ad-meta{font-size:15px!important}
+  .x .chip{font-size:15px}
+  .x .row-h b{font-size:17px}
+  .x .row-p{font-size:17px}
+  .x .row-p em{font-size:13.5px!important}
+  .crumb,.x .crumbs{font-size:13.5px}
+  .crumb a,.x .crumbs a{display:inline-block;padding-block:8px}
+  .ptable .tr .mid{font-size:14px}
+  .ptable .tr .nm{font-size:16px}
+  .post-cat{font-size:13px}
+  .post-meta{font-size:13.5px}
+  .bf{min-height:44px}
+  .x .dl-note,.dl-note{font-size:14.5px}
+  /* пример отчёта: метка над заголовком, заголовок во всю ширину */
+  .x .find-h{flex-direction:column-reverse;align-items:flex-start;gap:8px}
+  .x .find-h b{font-size:18px;line-height:1.3}
+  .x .dl{flex-wrap:wrap;row-gap:10px}
+  .x .dl>span:nth-child(2){flex:1 1 0;min-width:0}
+  .x .dl-go{width:100%;justify-content:center;min-height:44px;border-radius:999px;background:var(--wash)}
+  .x .sd-nums span{font-size:14px}
+  /* липкая кнопка внизу не закрывает контент */
+  body:has(.sticky-cta){padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+  .sticky-cta{padding-bottom:env(safe-area-inset-bottom)}
+  /* ссылки в тексте удобно нажимать */
+  .link-a{display:inline-block;padding-block:10px}
+  .ctc-link{min-height:24px}
+}
+@media (max-width:380px){
+  .x .row-h b{font-size:16px}
+  .cmp-tabs button{font-size:14px}
+}
+/* липкие элементы работают: обрезка по горизонтали без контейнера прокрутки */
+.x{overflow:visible!important;overflow-x:clip!important}
+@supports not (overflow:clip){.x{overflow-x:hidden!important}}
+@media (max-width:760px){
+  body{overflow-x:clip}
+  .x .radar{overflow:visible}
+}
+@media (max-width:360px){
+  .x .tabs{max-width:100%}
+  .x .tabs .tab{padding-inline:12px;font-size:14px}
+  .cmp-tabs button{font-size:13.5px}
+}
+
+/* ===== Телефон, 27.10.2026, третий проход: ритм разделов и пометки пакетов ===== */
+@media (max-width:760px){
+  .x .sec{padding-block:56px}
+  .x .sec.tight{padding-block:44px}
+  .x .risk-list{padding-bottom:0!important}
+  .x .br-deal .br-lab b{display:block}
+  .x .br-deal .br-lab b:after{display:table;margin:8px 0 0!important}
+  .x .br-lab .chip{min-height:44px}
+  .x .br-lab span{font-size:15px}
+}
+/* окна на телефоне открываются снизу, под большим пальцем */
+@media (max-width:759px){
+  .modal{align-items:flex-end!important;padding:0!important}
+  .modal .modal-in,#formModal .modal-in{width:100%;max-width:none;max-height:92vh;max-height:92dvh;overflow-y:auto;margin:0;border-radius:24px 24px 0 0!important;padding:22px 18px calc(22px + env(safe-area-inset-bottom));transform:translateY(40px)}
+  .modal.on .modal-in,#formModal.on .modal-in{transform:none}
+  .modal .modal-in::before{content:"";display:block;width:44px;height:5px;border-radius:3px;background:#D5E1E8;margin:-8px auto 14px}
+  .modal-x{width:44px;height:44px}
+}
+/* калькулятор пакетов: экономия текстом, без зелёной плашки */
+.x .calc-out .sv{background:none!important;padding:0!important;color:#9A5D0C!important;font-weight:700;font-size:15px}
+@media (max-width:760px){
+  .small,p.small,.x .small{font-size:15px}
+  .x .hero-note span{font-size:15px}
+  .ptable .tr .one{font-size:15px}
+  .pk-cell s{font-size:13px}
+  .iv-q span{font-size:15px}
+  .form-note{font-size:13.5px}
+  .head-cta2{font-size:14px!important}
+  .x .tl-k{font-size:13px}
+}
+@media (max-width:360px){
+  .x .hv[data-v="b"] .hero-lh{height:80px!important}
+  .x .hv .tagline{font-size:22px!important}
+}

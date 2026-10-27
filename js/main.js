@@ -398,8 +398,8 @@ function surveyHtml(){
   return '<div class="survey" id="svBox"><button class="survey-h" type="button" id="svToggle">'+
     (SV?'<span class="l1">Вопросы о сделке</span>'+
         '<span class="l2">'+L.length+' '+plural(L.length,'вопрос','вопроса','вопросов')+(must?', из них '+must+' '+plural(must,'важный','важных','важных'):'')+'. Можно пропустить любой или ответить «Не знаю»</span>'
-       :'<span class="l1">−20% рисков + 20% точности отчёта</span>'+
-        '<span class="l2">Ответьте на вопросы ниже<i>·</i>'+L.length+' вопросов. Можно пропустить любой</span>')+
+       :'<span class="l1">Вопросы о сделке</span>'+
+        '<span class="l2">'+L.length+' '+plural(L.length,'вопрос','вопроса','вопросов')+(must?', из них '+must+' '+plural(must,'важный','важных','важных'):'')+'. Можно пропустить любой или ответить «Не знаю»</span>')+
     '<span class="chev"><svg width="11" height="7" viewBox="0 0 11 7" aria-hidden="true"><path d="M1 1l4.5 4.5L10 1" stroke="#C87F17" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg></span>'+
     '</button><div class="survey-b"><div><div class="survey-in"><div class="qtrack" id="svTrack"></div>'+
     '<div class="qbar"><i id="svBar" style="width:0%"></i></div></div></div></div></div>';
@@ -513,7 +513,7 @@ function step1Html(key){
   h+='<div class="fm-meta">'+(s.t?'<span>Срок: <b>'+esc(s.t)+'</b></span>':'');
   if(s.cov) h+='<span>охватывает <b>'+s.cov+'%</b> проверяемых рисков</span>';
   h+='</div>';
-  h+='<div class="fm-price"><span>К оплате</span><b>'+esc(s.p)+'</b></div>';
+  h+='<div class="fm-price"><span>'+(s.pr?'К оплате':'Стоимость')+'</span><b>'+esc(s.p)+'</b></div>';
   h+='<button class="btn b1 fm-next" type="button" id="fmNext">Перейти к заявке'+ARR+'</button>';
   h+='</div>';
   return h;
@@ -595,6 +595,7 @@ function openForm(kind,key){
   var s1 = (kind==='svc') ? step1Html(key) : (kind==='packsvc' ? packStep1Html(key) : '');
   document.getElementById('fmStep1').innerHTML=s1;
   var cr=document.getElementById('fmCr'); cr.hidden=!s1;
+  if(cr.children[2]) cr.children[2].hidden=!price;   /* у бесплатной услуги шага «Оплата» нет */
   openModal(m); refresh(f);
   showStep(s1?1:2);
   if(!s1) setTimeout(function(){ var i=document.getElementById('fmFields').querySelector('input,textarea,select'); if(i) i.focus(); },260);
@@ -1817,5 +1818,47 @@ window.MAYAK = {
       box.addEventListener('click', function (e) { var b = e.target.closest('.opt'); if (!b) return; ci[key] = +b.dataset.i; $$('.opt', box).forEach(function (x) { x.setAttribute('aria-pressed', x === b); }); upd(); });
     };
     bind(rowsBox, 'row'); bind(sizeBox, 'size'); upd();
+  }
+})();
+
+/* ===== Телефон, 27.10.2026: сравнение вариантов по одному столбцу, свёрнутый подвал ===== */
+(function () {
+  'use strict';
+  // сравнение вариантов проверки объекта: на узком экране один столбец и переключатель
+  [].forEach.call(document.querySelectorAll('table.cmp'), function (t) {
+    var heads = [].slice.call(t.querySelectorAll('thead th')).slice(1);
+    if (heads.length < 2) return;
+    var start = 1; heads.forEach(function (h, i) { if (h.classList.contains('hl')) start = i; });
+    var bar = document.createElement('div');
+    bar.className = 'cmp-tabs'; bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', 'Вариант проверки');
+    heads.forEach(function (h, i) {
+      var b = document.createElement('button'); b.type = 'button';
+      b.textContent = (h.querySelector('b') || h).textContent.trim();
+      b.addEventListener('click', function () { set(i); });
+      bar.appendChild(b);
+    });
+    var set = function (i) {
+      t.setAttribute('data-col', String(i + 2));
+      [].forEach.call(bar.children, function (b, k) { b.setAttribute('aria-pressed', k === i); });
+    };
+    var host = t.closest('.scroll-x') || t;
+    host.parentNode.insertBefore(bar, host);
+    set(start);
+  });
+  // подвал: перечень документов сворачивается на телефоне
+  var col = document.querySelector('.foot .h4l');
+  col = col && col.closest('.foot-g > div');
+  if (col) {
+    col.classList.add('fold');
+    var h = col.querySelector('h4');
+    h.setAttribute('role', 'button'); h.setAttribute('tabindex', '0'); h.setAttribute('aria-expanded', 'false');
+    var tog = function (e) {
+      if (window.innerWidth > 760) return;
+      if (e.target.closest('a') && col.classList.contains('open')) return;
+      e.preventDefault();
+      var o = col.classList.toggle('open'); h.setAttribute('aria-expanded', o);
+    };
+    h.addEventListener('click', tog);
+    h.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') tog(e); });
   }
 })();

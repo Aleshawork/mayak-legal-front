@@ -207,7 +207,7 @@ function page(tpl, p) {
     { '@type': 'ListItem', position: 3, name: p.title, item: url }] }
   const art = { '@context': 'https://schema.org', '@type': 'Article', headline: p.title, description: p.description,
     datePublished: p.date, dateModified: p.updated || p.date, inLanguage: 'ru', mainEntityOfPage: url,
-    image: (IMAGES[p.slug] && (IMAGES[p.slug].cover || IMAGES[p.slug].cards[0])) ? IMG_BASE + (IMAGES[p.slug].cover || IMAGES[p.slug].cards[0]) + '.jpg' : SITE + '/og-image.png',
+    image: (IMAGES[p.slug] && (IMAGES[p.slug].cover || IMAGES[p.slug].cards[0])) ? IMG_BASE + (IMAGES[p.slug].cover || IMAGES[p.slug].cards[0]) + '.jpg' : SITE + '/og-mayak.png',
     author: { '@type': 'Organization', name: 'Маяк', url: SITE + '/' },
     publisher: { '@type': 'Organization', name: 'Маяк', url: SITE + '/' } }
   const map = { TITLE: esc(p.title), DESC: esc(p.description), URL: url, CAT: esc(p.category), READ: esc(p.read),
