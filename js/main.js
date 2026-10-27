@@ -1072,7 +1072,17 @@ var ADP=(function(){
     pct = Math.max(st.pct || 0, Math.min(pct, 99));          // назад не ходит; 100 — только на DONE
     st.pct = pct;
     return { mode: 'progress', stageIdx: stageIndex(code), stageCode: code, stageTitle: STAGES[stageIndex(code)].title,
-             oldServer: oldServer, photos: photos, tiles: st.tiles.slice(), pct: pct, elapsedText: TEXT.elapsed(elapsed) };
+             oldServer: oldServer, photos: photos, tiles: st.tiles.slice(), emptyTiles: emptyTiles(code, photos),
+             pct: pct, elapsedText: TEXT.elapsed(elapsed) };
+  }
+
+  /* PHOTO-TILES-V2 (наряд 145): сколько пустых плиток показать после заполненных — только ещё НЕ разобранные
+   * снимки (photos_total − photos_done) и только на этапе photos. Разобранный, но не сохранённый снимок (превью,
+   * повтор, не скачался — в бакет не кладётся) пустого места не оставляет; после этапа photos пустых нет вовсе:
+   * ряд кончается на последнем полученном снимке. В 144 пустых было photos_total − tiles, и в живом разборе
+   * три из двенадцати так и остались пустыми. */
+  function emptyTiles(code, photos) {
+    return code === 'photos' && photos ? Math.max(0, photos.total - photos.done) : 0;
   }
 
   /* PHOTO-TILES-V1 (наряд 144): photo_tiles [{n, url}] приходит только на этапе photos — по готовности,
@@ -1134,7 +1144,7 @@ var ADP=(function(){
         var done = Math.min(12, Math.floor((s - 6) / 2));
         return { status: 'NEW', stage: 'photos', photos_total: 12, photos_done: done, photo_tiles: mockTiles(done) };
       }
-      if (s < 45) return { status: 'NEW', stage: 'rules', photos_total: 12, photos_done: 12 };
+      if (s < 45) return { status: 'NEW', stage: 'rules', photos_total: 12, photos_done: 12, photo_tiles: mockTiles(12, true) };
       return { status: 'NEW', stage: 'report', photos_total: 12, photos_done: 12 };
     }
     if (kind === 'done' && s >= 55) {
@@ -1148,10 +1158,15 @@ var ADP=(function(){
     return going();
   }
 
-  // mock: плитки — картинки-заглушки с номером, по готовности (порядок не совпадает с номерами)
+  // mock: плитки — картинки-заглушки с номером, по готовности (порядок не совпадает с номерами).
+  // Как вживую (144, D): снимок 5 разобран, но не сохранён (повтор) — плитки у него нет; последний готовый
+  // снимок на этапе photos ещё не виден (сохранён после опроса) и доходит на этапе rules (PHOTO-TILES-V2).
   var MOCK_ORDER = [3, 1, 2, 6, 4, 5, 9, 7, 8, 12, 10, 11];
-  function mockTiles(done) {
-    return MOCK_ORDER.slice(0, done).map(function (n) {
+  var MOCK_SKIP = [5];
+  function mockTiles(done, tail) {
+    return MOCK_ORDER.slice(0, tail ? done : Math.max(0, done - 1)).filter(function (n) {
+      return MOCK_SKIP.indexOf(n) < 0;
+    }).map(function (n) {
       var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="120"><rect width="160" height="120" fill="#D6E4EC"/>'
         + '<text x="80" y="70" font-family="sans-serif" font-size="28" fill="#5C7686" text-anchor="middle">' + n + '</text></svg>';
       return { n: n, url: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) };
@@ -1229,26 +1244,40 @@ function adcPhotosText(r){
   if(!r||!('stage' in r)||typeof t!=='number'||t<=0) return '';
   return ADP.TEXT.photos(Math.min(typeof d==='number'?d:0,t),t);
 }
-/* PHOTO-TILES-V1 (наряд 144): под «Разобрали N из M снимков» — уже разобранные снимки плитками, по готовности;
-   остальные до photos_total — пустые. Ряд появляется, когда сервер прислал photo_tiles: поля нет (старый
-   сервер, сбой бакета) — карточка как в 143. Показанная плитка не пересоздаётся (иначе мигание);
-   картинка не загрузилась (ссылка истекла, сеть) — плитка остаётся пустой, без повторов. */
+/* PHOTO-TILES-V1 (наряд 144): под «Разобрали N из M снимков» — уже разобранные снимки плитками, по готовности.
+   Ряд появляется, когда сервер прислал photo_tiles: поля нет (старый сервер, сбой бакета) — карточка как в 143.
+   Показанная плитка не пересоздаётся (иначе мигание); картинка не загрузилась (ссылка истекла, сеть) — плитка
+   остаётся пустой, без повторов.
+   PHOTO-TILES-V2 (наряд 145): пустых — v.emptyTiles (только ещё не разобранные, только на этапе photos), а не до
+   photos_total. Пустые сверх нового числа уходят плавно (или сразу при prefers-reduced-motion); заполненные не трогаются. */
 function adcTiles(run,v){
   var r=run.resp||{};
   if(Array.isArray(r.photo_tiles)) run.tilesOn=true;
   if(!run.tilesOn) return;
-  if(typeof r.photos_total==='number') run.tilesTotal=Math.max(run.tilesTotal||0,r.photos_total);
-  var tiles=v.tiles||[], n=Math.min(Math.max(tiles.length,run.tilesTotal||0),24);
-  var tx=run.box.querySelector('[data-st="photos"] .adc-tx'); if(!tx||!n) return;
+  var tiles=v.tiles||[], n=Math.min(tiles.length+(v.emptyTiles||0),24);
+  var tx=run.box.querySelector('[data-st="photos"] .adc-tx'); if(!tx) return;
   var g=tx.querySelector('.adc-tl');
-  if(!g){ g=document.createElement('div'); g.className='adc-tl'; g.setAttribute('aria-hidden','true'); tx.appendChild(g); }
-  while(g.children.length<n){ var e=document.createElement('span'); e.className='adc-tc'; g.appendChild(e); }
-  for(var i=0;i<tiles.length&&i<g.children.length;i++){
-    var c=g.children[i];
+  if(!g){ if(!n) return; g=document.createElement('div'); g.className='adc-tl'; g.setAttribute('aria-hidden','true'); tx.appendChild(g); }
+  var live=adcTilesLive(g);
+  while(live.length<n){ var e=document.createElement('span'); e.className='adc-tc'; g.appendChild(e); live.push(e); }
+  for(var i=0;i<tiles.length&&i<live.length;i++){
+    var c=live[i];
     if(c.getAttribute('data-n')) continue;
     c.setAttribute('data-n',String(tiles[i].n));
     adcTileImg(c,tiles[i].url);
   }
+  for(var j=live.length-1;j>=n;j--){ if(!live[j].getAttribute('data-n')) adcTileDrop(live[j]); }
+}
+function adcTilesLive(g){
+  var out=[];
+  for(var i=0;i<g.children.length;i++) if(g.children[i].className.indexOf('gone')<0) out.push(g.children[i]);
+  return out;
+}
+function adcTileDrop(c){
+  var still=false; try{ still=window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(x){}
+  if(still){ if(c.parentNode) c.parentNode.removeChild(c); return; }
+  c.className+=' gone';
+  setTimeout(function(){ if(c.parentNode) c.parentNode.removeChild(c); },400);
 }
 function adcTileImg(c,url){
   var im=document.createElement('img');

@@ -2758,4 +2758,7 @@ form.ad-run .form-done .adc-h{margin:0;font-size:26px;line-height:1.2;color:var(
 .adc-tc{position:relative;aspect-ratio:4/3;border-radius:6px;background:var(--tr);overflow:hidden}
 .adc-tc img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .4s ease}
 .adc-tc img.on{opacity:1}
-@media (prefers-reduced-motion:reduce){.adc-tc img{transition:none}}
+/* PHOTO-TILES-V2 (наряд 145): лишняя пустая плитка уходит плавно */
+.adc-tc{transition:opacity .35s ease}
+.adc-tc.gone{opacity:0}
+@media (prefers-reduced-motion:reduce){.adc-tc img,.adc-tc{transition:none}}
