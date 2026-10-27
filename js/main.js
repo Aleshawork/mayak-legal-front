@@ -1048,6 +1048,7 @@ var ADP=(function(){
       return { mode: 'fail', failIdx: failIdx, message: resp.message || '', refunded: resp.refunded === true,
                pct: st.pct };
     }
+    mergeTiles(st, resp);
     var code = oldServer ? oldServerStage(elapsed) : (resp.stage === 'queued' ? 'queued' : STAGES[stageIndex(resp.stage)].code);
     var band = BANDS[code === 'queued' ? 'open' : code];
     if (code !== st.stage) { st.stage = code; st.stageAt = now; }
@@ -1071,7 +1072,21 @@ var ADP=(function(){
     pct = Math.max(st.pct || 0, Math.min(pct, 99));          // назад не ходит; 100 — только на DONE
     st.pct = pct;
     return { mode: 'progress', stageIdx: stageIndex(code), stageCode: code, stageTitle: STAGES[stageIndex(code)].title,
-             oldServer: oldServer, photos: photos, pct: pct, elapsedText: TEXT.elapsed(elapsed) };
+             oldServer: oldServer, photos: photos, tiles: st.tiles.slice(), pct: pct, elapsedText: TEXT.elapsed(elapsed) };
+  }
+
+  /* PHOTO-TILES-V1 (наряд 144): photo_tiles [{n, url}] приходит только на этапе photos — по готовности,
+   * ссылки живут 10 минут. Плитки копятся в состоянии: новые номера дописываются в конец, у уже
+   * показанного номера ссылка НЕ меняется (картинка загружена — повторная загрузка мигнула бы).
+   * На следующих этапах поле не приходит, а показанные плитки остаются. */
+  function mergeTiles(st, resp) {
+    var list = Array.isArray(resp.photo_tiles) ? resp.photo_tiles : [];
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i], n = num(t && t.n);
+      if (n === null || typeof t.url !== 'string' || !/^https:\/\//.test(t.url) && !/^data:image\//.test(t.url)) continue;
+      if (st.tiles.some(function (x) { return x.n === n; })) continue;
+      st.tiles.push({ n: n, url: t.url });
+    }
   }
 
   function windowOf(code) {
@@ -1115,7 +1130,10 @@ var ADP=(function(){
     function going() {
       if (s < 3) return { status: 'NEW', stage: 'queued' };
       if (s < 6) return { status: 'NEW', stage: 'open' };
-      if (s < 30) return { status: 'NEW', stage: 'photos', photos_total: 12, photos_done: Math.min(12, Math.floor((s - 6) / 2)) };
+      if (s < 30) {
+        var done = Math.min(12, Math.floor((s - 6) / 2));
+        return { status: 'NEW', stage: 'photos', photos_total: 12, photos_done: done, photo_tiles: mockTiles(done) };
+      }
       if (s < 45) return { status: 'NEW', stage: 'rules', photos_total: 12, photos_done: 12 };
       return { status: 'NEW', stage: 'report', photos_total: 12, photos_done: 12 };
     }
@@ -1130,7 +1148,17 @@ var ADP=(function(){
     return going();
   }
 
-  function newState(sentAt) { return { sentAt: sentAt, stage: null, stageAt: sentAt, pct: 0 }; }
+  // mock: плитки — картинки-заглушки с номером, по готовности (порядок не совпадает с номерами)
+  var MOCK_ORDER = [3, 1, 2, 6, 4, 5, 9, 7, 8, 12, 10, 11];
+  function mockTiles(done) {
+    return MOCK_ORDER.slice(0, done).map(function (n) {
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="120"><rect width="160" height="120" fill="#D6E4EC"/>'
+        + '<text x="80" y="70" font-family="sans-serif" font-size="28" fill="#5C7686" text-anchor="middle">' + n + '</text></svg>';
+      return { n: n, url: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) };
+    });
+  }
+
+  function newState(sentAt) { return { sentAt: sentAt, stage: null, stageAt: sentAt, pct: 0, tiles: [] }; }
   return { STAGES: STAGES, BANDS: BANDS, TEXT: TEXT, POLL_MS: POLL_MS, BACKOFF_MS: BACKOFF_MS,
            mmss: mmss, stageIndex: stageIndex, oldServerStage: oldServerStage, view: view,
            summaryOf: summaryOf, stageMarks: stageMarks, nextDelay: nextDelay, mockResponse: mockResponse,
@@ -1201,6 +1229,35 @@ function adcPhotosText(r){
   if(!r||!('stage' in r)||typeof t!=='number'||t<=0) return '';
   return ADP.TEXT.photos(Math.min(typeof d==='number'?d:0,t),t);
 }
+/* PHOTO-TILES-V1 (наряд 144): под «Разобрали N из M снимков» — уже разобранные снимки плитками, по готовности;
+   остальные до photos_total — пустые. Ряд появляется, когда сервер прислал photo_tiles: поля нет (старый
+   сервер, сбой бакета) — карточка как в 143. Показанная плитка не пересоздаётся (иначе мигание);
+   картинка не загрузилась (ссылка истекла, сеть) — плитка остаётся пустой, без повторов. */
+function adcTiles(run,v){
+  var r=run.resp||{};
+  if(Array.isArray(r.photo_tiles)) run.tilesOn=true;
+  if(!run.tilesOn) return;
+  if(typeof r.photos_total==='number') run.tilesTotal=Math.max(run.tilesTotal||0,r.photos_total);
+  var tiles=v.tiles||[], n=Math.min(Math.max(tiles.length,run.tilesTotal||0),24);
+  var tx=run.box.querySelector('[data-st="photos"] .adc-tx'); if(!tx||!n) return;
+  var g=tx.querySelector('.adc-tl');
+  if(!g){ g=document.createElement('div'); g.className='adc-tl'; g.setAttribute('aria-hidden','true'); tx.appendChild(g); }
+  while(g.children.length<n){ var e=document.createElement('span'); e.className='adc-tc'; g.appendChild(e); }
+  for(var i=0;i<tiles.length&&i<g.children.length;i++){
+    var c=g.children[i];
+    if(c.getAttribute('data-n')) continue;
+    c.setAttribute('data-n',String(tiles[i].n));
+    adcTileImg(c,tiles[i].url);
+  }
+}
+function adcTileImg(c,url){
+  var im=document.createElement('img');
+  im.alt=''; im.setAttribute('loading','eager'); im.setAttribute('decoding','async'); im.setAttribute('referrerpolicy','no-referrer');
+  im.onload=function(){ im.className='on'; };
+  im.onerror=function(){ if(im.parentNode) im.parentNode.removeChild(im); };
+  c.appendChild(im);
+  im.src=url;
+}
 function adcShow(run,v){
   var box=run.box;
   if(run.mode!==v.mode){
@@ -1218,6 +1275,7 @@ function adcShow(run,v){
     }
     var pt=adcPhotosText(run.resp);
     if(pt) box.querySelector('[data-st="photos"] .adc-dt').textContent=pt;
+    if(v.mode==='progress') adcTiles(run,v);
   }
   if(v.mode!=='progress') return;
   box.querySelector('.adc-fill').style.width=v.pct.toFixed(1)+'%';
