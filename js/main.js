@@ -913,7 +913,8 @@ function ddWhen(iso){
    скриптом его не забрать, а всплывающее окно браузер заблокирует — с момента
    нажатия проходят минуты. */
 var AD_HOSTS=['avito.ru','cian.ru','domclick.ru','realty.yandex.ru','realty.ya.ru'];
-var AD_POLL_MS=5000, AD_GIVEUP_MS=5*60*1000;
+/* опрос ведёт карточка (nextDelay); сервер сам закрывает зависшую заявку через 20 минут */
+var AD_GIVEUP_MS=25*60*1000;
 /* Согласие на рассылку в форме разбора: отдельная галочка, по умолчанию не отмечена.
    Поле marketing_consent сервер примет после правки контракта (Александр).
    До этого AD_SEND_MKT=false, и форма шлёт только ссылку, почту и force. */
@@ -968,84 +969,361 @@ function adError(res){
   if(d.error==='bad_email') return AD_TXT.badEmail;
   return d.message||AD_TXT.net;
 }
-function adPoll(id,onTick){
-  var started=Date.now();
-  return new Promise(function(resolve,reject){
-    (function tick(){
-      if(Date.now()-started>AD_GIVEUP_MS){ reject(new Error(AD_TXT.slow)); return; }
-      adApi('/api/listing-status?listing_id='+encodeURIComponent(id)).then(function(res){
-        var d=res.data;
-        if(res.status===404){ reject(new Error(AD_TXT.lost)); return; }
-        /* 503 — не отказ по заявке, а недоступное хранилище статусов: ждём дальше */
-        if(res.status>=500||d.error==='db_unavailable'){ setTimeout(tick,AD_POLL_MS); return; }
-        if(res.status>=400){ reject(new Error(d.message||AD_TXT.net)); return; }
-        if(d.status==='DONE'&&d.report_url){ resolve(d.report_url); return; }
-        if(d.status==='FAILED'){ reject(new Error(d.message||'Объявление недоступно: похоже, оно снято с публикации.')); return; }
-        if(onTick) onTick(Math.round((Date.now()-started)/1000));
-        setTimeout(tick,AD_POLL_MS);
-      }).catch(function(){ setTimeout(tick,AD_POLL_MS); });
-    })();
-  });
-}
-function adDone(f,reportUrl,ageSec,rerun){
-  var box=f.querySelector('.form-done'); if(!box) return;
-  var when='';
-  if(ageSec){
-    var d=new Date(Date.now()-ageSec*1000);
-    when=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
-  }
-  box.innerHTML='<h4>Разбор готов</h4>'+
-    (when?'<p class="small">Это объявление уже разбиралось сегодня. Показываем разбор от '+when+'.</p>':'')+
-    '<p><a class="btn b-amber" href="'+esc(reportUrl)+'" target="_blank" rel="noopener">Открыть разбор объявления</a></p>'+
-    (when?'<p><button class="btn b2" type="button" data-ad-again>Проверить заново</button></p>':'')+
-    '<div class="next-step"><span class="ns-k">Следующий шаг</span><p>Если объявление подходит, проверьте объект по сведениям ЕГРН до аванса. Экспресс-проверка готова до 1 календарного дня, стандартная и расширенная до 2 календарных дней.</p>'+
-    '<button class="btn b1" type="button" data-tiers="obj">Проверить объект · от 990\u00a0₽</button></div>';
-  f.classList.add('sent'); goal('ad_done');
-  var again=box.querySelector('[data-ad-again]');
-  if(again) again.addEventListener('click',function(){ f.classList.remove('sent'); rerun(true); });
-}
-function adFail(f,msg){
-  var box=f.querySelector('.form-done'); if(!box){ alert(msg); return; }
-  box.innerHTML='<h4>Не получилось</h4><p class="small">'+esc(msg)+'</p>';
-  f.classList.add('sent');
-}
-function adRun(f,url,email,force,mkt){
-  var btn=f.querySelector('.submit'), prev=btn?btn.innerHTML:'';
-  function busy(on,label){
-    if(!btn) return;
-    btn.disabled=!!on; btn.classList.toggle('off',!!on);
-    if(on) btn.textContent=label||AD_TXT.wait; else btn.innerHTML=prev;
-  }
-  function rerun(fc){ adRun(f,url,email,fc,mkt); }
-  function finish(reportUrl,age){ busy(false); adDone(f,reportUrl,age,rerun); }
-  function fail(msg){ busy(false); adFail(f,msg); }
-  function wait(id){
-    adPoll(id,function(sec){ busy(true,AD_TXT.wait+(sec>20?' · '+sec+' с':'…')); })
-      .then(function(u){ finish(u,0); })
-      .catch(function(e){ fail((e&&e.message)||AD_TXT.net); });
+/* PROGRESS-V1 (наряд 143): карточка ожидания разбора — настоящий ход с сервера (этап, снимки, итог),
+   а не анимация по таймеру. Логика — без изменений из проверенного модуля 143_progress_card.js
+   (listing-skills-kb, тест node); сервер без stage — этапы по времени. */
+var ADP=(function(){
+  'use strict';
+
+  var STAGES = [
+    { code: 'open', title: 'Открываем объявление' },
+    { code: 'photos', title: 'Смотрим фотографии' },
+    { code: 'rules', title: 'Сверяем с базой признаков' },
+    { code: 'report', title: 'Собираем разбор и письмо' }
+  ];
+  // Доля полосы по этапам: queued/open 5–15 %, photos 15–55 % по снимкам, rules 55–85 %, report 85–100 %
+  var BANDS = { open: [5, 15], photos: [15, 55], rules: [55, 85], report: [85, 100] };
+  // Сервер старого вида: этапы по времени от отправки, секунды
+  var OLD_SERVER = [[0, 'open'], [12, 'photos'], [60, 'rules'], [100, 'report']];
+  // Внутри этапа без счётчика полоса ползёт к концу полосы этапа, не доходя до него
+  var CREEP_S = { open: 6, photos: 20, rules: 20, report: 12 };
+  var CREEP_MAX = 0.9;
+  var POLL_MS = 3000, BACKOFF_MS = 6000;
+
+  var TEXT = {
+    elapsed: function (ms) { return 'Прошло ' + mmss(ms) + ' · обычно около 2:00'; },
+    canClose: 'Страницу можно закрыть: разбор придёт на почту.',
+    photos: function (done, total) { return 'Разобрали ' + done + ' из ' + total + ' снимков'; },
+    open: 'Открыть разбор',
+    next: 'В разборе — кнопки проверки объекта по ЕГРН: экспресс, стандартная и расширенная.',
+    refunded: 'Попытка не списана',
+    retry: 'Отправить ещё раз',
+    support: function (lid) { return 'Если повторится — напишите на support@mayak-legal.ru, номер разбора: ' + lid; }
+  };
+
+  function mmss(ms) {
+    var s = Math.max(0, Math.floor((ms || 0) / 1000));
+    var ss = s % 60;
+    return Math.floor(s / 60) + ':' + (ss < 10 ? '0' : '') + ss;
   }
 
-  if(!adSupported(url)){ adFail(f,adHost(url)?AD_TXT.badHost:AD_TXT.badUrl); return; }
-  busy(true,AD_TXT.wait+'…');
+  // queued и всё незнакомое — первый этап («Открываем объявление» ещё не начато)
+  function stageIndex(code) {
+    for (var i = 0; i < STAGES.length; i++) if (STAGES[i].code === code) return i;
+    return 0;
+  }
+
+  function oldServerStage(elapsedMs) {
+    var s = (elapsedMs || 0) / 1000, code = 'open';
+    for (var i = 0; i < OLD_SERVER.length; i++) if (s >= OLD_SERVER[i][0]) code = OLD_SERVER[i][1];
+    return code;
+  }
+
+  function creep(seconds, tau) {
+    return CREEP_MAX * (1 - Math.exp(-Math.max(0, seconds) / tau));
+  }
+
+  function num(v) {
+    return typeof v === 'number' && isFinite(v) && v >= 0 ? Math.floor(v) : null;
+  }
+
+  /* Ответ статуса -> вид карточки. st — состояние между опросами (создаётся newState()):
+   *   sentAt — момент отправки формы (мс), stage/stageAt — последний этап и когда он начался,
+   *   pct — последняя показанная доля (полоса назад не ходит).
+   * Возвращает {mode: progress|done|fail, stageIdx, stageCode, oldServer, photos, pct, …}. */
+  function view(resp, st, now) {
+    resp = resp || {};
+    var status = String(resp.status || 'NEW').toUpperCase();
+    var elapsed = now - st.sentAt;
+    var oldServer = !('stage' in resp) && status === 'NEW';
+    if (status === 'DONE') {
+      st.pct = 100;
+      return { mode: 'done', pct: 100, reportUrl: resp.report_url || '', summary: summaryOf(resp.summary),
+               elapsedText: TEXT.elapsed(elapsed) };
+    }
+    if (status === 'FAILED') {
+      var fs = typeof resp.fail_stage === 'string' ? resp.fail_stage : null;
+      var failIdx = fs ? stageIndex(fs) : stageIndex(st.stage || 'open');
+      return { mode: 'fail', failIdx: failIdx, message: resp.message || '', refunded: resp.refunded === true,
+               pct: st.pct };
+    }
+    var code = oldServer ? oldServerStage(elapsed) : (resp.stage === 'queued' ? 'queued' : STAGES[stageIndex(resp.stage)].code);
+    var band = BANDS[code === 'queued' ? 'open' : code];
+    if (code !== st.stage) { st.stage = code; st.stageAt = now; }
+    var inStage = (now - st.stageAt) / 1000;
+    var photos = null, frac;
+    if (code === 'queued') {
+      frac = 0;
+    } else if (code === 'photos' && !oldServer && num(resp.photos_total) > 0) {
+      var total = num(resp.photos_total), done = Math.min(num(resp.photos_done) || 0, total);
+      photos = { done: done, total: total, text: TEXT.photos(done, total) };
+      frac = done / total;
+    } else if (oldServer) {
+      // по времени: доля окна этапа; последний этап — ползёт
+      var w = windowOf(code);
+      frac = w ? Math.min(1, (elapsed / 1000 - w[0]) / (w[1] - w[0])) * CREEP_MAX : creep(inStage, CREEP_S[code]);
+    } else {
+      frac = creep(inStage, CREEP_S[code]);
+    }
+    var pct = band[0] + (band[1] - band[0]) * frac;
+    if (code === 'queued') pct = 5;
+    pct = Math.max(st.pct || 0, Math.min(pct, 99));          // назад не ходит; 100 — только на DONE
+    st.pct = pct;
+    return { mode: 'progress', stageIdx: stageIndex(code), stageCode: code, stageTitle: STAGES[stageIndex(code)].title,
+             oldServer: oldServer, photos: photos, pct: pct, elapsedText: TEXT.elapsed(elapsed) };
+  }
+
+  function windowOf(code) {
+    for (var i = 0; i < OLD_SERVER.length - 1; i++) {
+      if (OLD_SERVER[i][1] === code) return [OLD_SERVER[i][0], OLD_SERVER[i + 1][0]];
+    }
+    return null;
+  }
+
+  // summary -> {level, alert, missing, questions, photo_notes} или null (без плашки, только кнопка)
+  function summaryOf(s) {
+    if (!s || typeof s !== 'object') return null;
+    var level = s.level === 'high' || s.level === 'medium' || s.level === 'none' ? s.level : null;
+    return { level: level, alert: num(s.alert) || 0, missing: num(s.missing) || 0,
+             questions: num(s.questions) || 0, photo_notes: num(s.photo_notes) || 0 };
+  }
+
+  // Состояние значка этапа: done (галка), active (пульс), fail (крест), idle
+  function stageMarks(v) {
+    return STAGES.map(function (_s, i) {
+      if (v.mode === 'done') return 'done';
+      if (v.mode === 'fail') return i < v.failIdx ? 'done' : (i === v.failIdx ? 'fail' : 'idle');
+      if (v.stageCode === 'queued') return i === 0 ? 'active' : 'idle';
+      return i < v.stageIdx ? 'done' : (i === v.stageIdx ? 'active' : 'idle');
+    });
+  }
+
+  /* Следующий опрос, мс, или null — стоп. kind: 'ok' (ответ 200), 'http' (код), 'network'.
+   * NEW — 3 с; DONE/FAILED — стоп; 429, 5xx (503 — «хранилище недоступно, повторите») и сеть —
+   * 6 с и тихий повтор, без сообщения клиенту. 400 и 404 — стоп: страница показывает message сервера. */
+  function nextDelay(kind, code, resp) {
+    if (kind === 'network') return BACKOFF_MS;
+    if (kind === 'http') return code === 429 || code >= 500 ? BACKOFF_MS : null;
+    var status = String((resp && resp.status) || 'NEW').toUpperCase();
+    return status === 'NEW' ? POLL_MS : null;
+  }
+
+  // ?mock=progress | done | fail — ответы статуса по времени от отправки (только с параметром)
+  function mockResponse(kind, elapsedMs) {
+    var s = elapsedMs / 1000;
+    function going() {
+      if (s < 3) return { status: 'NEW', stage: 'queued' };
+      if (s < 6) return { status: 'NEW', stage: 'open' };
+      if (s < 30) return { status: 'NEW', stage: 'photos', photos_total: 12, photos_done: Math.min(12, Math.floor((s - 6) / 2)) };
+      if (s < 45) return { status: 'NEW', stage: 'rules', photos_total: 12, photos_done: 12 };
+      return { status: 'NEW', stage: 'report', photos_total: 12, photos_done: 12 };
+    }
+    if (kind === 'done' && s >= 55) {
+      return { status: 'DONE', report_url: '#mock-report',
+               summary: { level: 'medium', alert: 3, missing: 2, questions: 5, photo_notes: 2 } };
+    }
+    if (kind === 'fail' && s >= 20) {
+      return { status: 'FAILED', message: 'Не удалось разобрать объявление по этой ссылке.',
+               fail_stage: 'photos', refunded: true };
+    }
+    return going();
+  }
+
+  function newState(sentAt) { return { sentAt: sentAt, stage: null, stageAt: sentAt, pct: 0 }; }
+  return { STAGES: STAGES, BANDS: BANDS, TEXT: TEXT, POLL_MS: POLL_MS, BACKOFF_MS: BACKOFF_MS,
+           mmss: mmss, stageIndex: stageIndex, oldServerStage: oldServerStage, view: view,
+           summaryOf: summaryOf, stageMarks: stageMarks, nextDelay: nextDelay, mockResponse: mockResponse,
+           newState: newState };
+})();
+/* Разметка карточки — по макету 143_макет_ожидания: этапы, полоса, таймер; итог; ошибка. */
+var ADC_DETAIL={open:'Площадка, цена, описание, кадастровый номер',photos:'До 12 снимков',
+                rules:'272 признака по площадкам и типам объектов',report:'Итог, вопросы продавцу, что проверить дальше'};
+/* подписи уровня — те же, что в отчёте (_VERDICT_LABELS fn-listing) */
+var ADC_LEVEL={high:'Высокий уровень риска',medium:'Средний уровень риска',none:'Явных признаков риска не найдено'};
+var ADC_OK='<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.5l2.5 2.5L11 4.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+var ADC_X='<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3L3 9" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>';
+var ADC_KICK='<div class="adc-k">Маяк · разбор объявления</div>';
+var adCur=null;   /* текущий разбор: один на страницу */
+function adWord(n,one,few,many){ var a=n%10,b=n%100; return a===1&&b!==11?one:(a>=2&&a<=4&&(b<12||b>14)?few:many); }
+function adWhen(ageSec){
+  var d=new Date(Date.now()-ageSec*1000);
+  return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+}
+function adcStagesHtml(){
+  return '<ol class="adc-st">'+ADP.STAGES.map(function(s){
+    return '<li class="idle" data-st="'+s.code+'"><span class="adc-ic" aria-hidden="true"></span>'+
+      '<span class="adc-tx"><b>'+esc(s.title)+'</b><span class="adc-dt">'+esc(ADC_DETAIL[s.code])+'</span></span></li>';
+  }).join('')+'</ol>';
+}
+function adcProgressHtml(){
+  return '<div class="adc">'+ADC_KICK+
+    '<div class="adc-hd"><h4 class="adc-h">Разбираем объявление</h4><p class="adc-sub">'+esc(ADP.TEXT.canClose)+'</p></div>'+
+    '<div class="adc-bar" role="progressbar" aria-label="Ход разбора" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">'+
+      '<i class="adc-fill"></i><i class="adc-beam"></i></div>'+
+    '<p class="adc-sr" aria-live="polite"></p>'+
+    adcStagesHtml()+
+    '<div class="adc-foot"><span class="adc-el"></span><span class="adc-us"></span></div></div>';
+}
+/* Счётчики — по правилу письма и отчёта: «настораживает» и «не хватает» только ненулевые */
+function adcPlateHtml(s){
+  var n=[];
+  if(s.alert>0) n.push([s.alert,'настораживает','a']);
+  if(s.missing>0) n.push([s.missing,'не хватает','m']);
+  n.push([s.questions,adWord(s.questions,'вопрос','вопроса','вопросов')+' продавцу','q']);
+  n.push([s.photo_notes,adWord(s.photo_notes,'замечание','замечания','замечаний')+' по фото','p']);
+  return '<div class="adc-plate'+(s.level?' lv-'+s.level:'')+'"><div class="adc-pk">Итог</div>'+
+    (ADC_LEVEL[s.level]?'<div class="adc-pt">'+ADC_LEVEL[s.level]+'</div>':'')+
+    '<div class="adc-pn">'+n.map(function(x){ return '<span class="n-'+x[2]+'"><b>'+x[0]+'</b> '+x[1]+'</span>'; }).join('')+'</div></div>';
+}
+function adcDoneHtml(run,v){
+  return '<div class="adc">'+ADC_KICK+
+    '<div class="adc-dh"><span class="adc-ok">'+ADC_OK+'</span><h4 class="adc-h">Разбор готов</h4></div>'+
+    (run.age?'<p class="adc-note">Это объявление уже разбиралось сегодня. Показываем разбор от '+run.age+'.</p>':'')+
+    (v.summary?adcPlateHtml(v.summary):'')+
+    (v.reportUrl?'<a class="adc-btn" href="'+esc(v.reportUrl)+'" target="_blank" rel="noopener">'+esc(ADP.TEXT.open)+'</a>':'')+
+    (run.email&&!run.age?'<p class="adc-note">Копия отправлена на '+esc(run.email)+'. Ссылка действует 90 дней.</p>':'')+
+    (run.age?'<button class="adc-btn2" type="button" data-ad-again>Проверить заново</button>':'')+
+    '<div class="next-step"><span class="ns-k">Что дальше</span><p>'+esc(ADP.TEXT.next)+'</p>'+
+    '<button class="btn b1" type="button" data-tiers="obj">Проверить объект · от 990 ₽</button></div></div>';
+}
+function adcFailHtml(run,v){
+  var sup=esc(ADP.TEXT.support(run.id||'')).replace('support@mayak-legal.ru','<a href="mailto:support@mayak-legal.ru">support@mayak-legal.ru</a>');
+  return '<div class="adc">'+ADC_KICK+'<h4 class="adc-h">Разбор не получился</h4>'+
+    (run.id?adcStagesHtml():'')+
+    '<p class="adc-msg">'+esc(v.message||AD_TXT.net)+'</p>'+
+    (v.refunded?'<div class="adc-chip">'+esc(ADP.TEXT.refunded)+'</div>':'')+
+    '<button class="adc-btn" type="button" data-ad-retry>'+esc(ADP.TEXT.retry)+'</button>'+
+    (run.id?'<p class="adc-note">'+sup+'</p>':'')+'</div>';
+}
+function adcPhotosText(r){
+  var t=r&&r.photos_total, d=r&&r.photos_done;
+  if(!r||!('stage' in r)||typeof t!=='number'||t<=0) return '';
+  return ADP.TEXT.photos(Math.min(typeof d==='number'?d:0,t),t);
+}
+function adcShow(run,v){
+  var box=run.box;
+  if(run.mode!==v.mode){
+    run.mode=v.mode;
+    box.innerHTML=v.mode==='done'?adcDoneHtml(run,v):(v.mode==='fail'?adcFailHtml(run,v):adcProgressHtml());
+    adcBind(run);
+  }
+  var li=box.querySelectorAll('.adc-st li');
+  if(li.length){
+    var marks=ADP.stageMarks(v);
+    for(var i=0;i<li.length;i++){
+      if(li[i].className===marks[i]) continue;      /* значок меняется только со сменой состояния: пульс не сбрасывается */
+      li[i].className=marks[i];
+      li[i].querySelector('.adc-ic').innerHTML=marks[i]==='done'?ADC_OK:(marks[i]==='fail'?ADC_X:(marks[i]==='active'?'<i class="adc-pulse"></i>':''));
+    }
+    var pt=adcPhotosText(run.resp);
+    if(pt) box.querySelector('[data-st="photos"] .adc-dt').textContent=pt;
+  }
+  if(v.mode!=='progress') return;
+  box.querySelector('.adc-fill').style.width=v.pct.toFixed(1)+'%';
+  box.querySelector('.adc-bar').setAttribute('aria-valuenow',String(Math.round(v.pct)));
+  var el=v.elapsedText.split(' · ');
+  box.querySelector('.adc-el').textContent=el[0];
+  box.querySelector('.adc-us').textContent=el[1]||'';
+  var live=box.querySelector('.adc-sr'), now='Сейчас: '+v.stageTitle.toLowerCase();
+  if(live.textContent!==now) live.textContent=now;   /* читалка экрана слышит только смену этапа */
+}
+function adcBind(run){
+  var again=run.box.querySelector('[data-ad-again]'), retry=run.box.querySelector('[data-ad-retry]');
+  if(again) again.addEventListener('click',function(){ adRun(run.f,run.url,run.email,true,run.mkt); });
+  if(retry) retry.addEventListener('click',function(){
+    if(run.mock){ adRun(run.f,'',run.email,false,false,run.mock); return; }
+    if(run.id){ adRun(run.f,run.url,run.email,false,run.mkt); return; }
+    /* заявка не принята (ссылка, почта, лимит) — назад к заполненной форме */
+    run.dead=true; run.f.classList.remove('sent');
+    var inp=run.f.querySelector('[name="link"]'); if(inp) inp.focus();
+  });
+}
+function adcAlive(run){ return !run.dead&&run.f.classList.contains('sent')&&!!run.box.querySelector('.adc'); }
+function adcStop(run){ clearTimeout(run.poll); clearInterval(run.tick); run.poll=run.tick=null; }
+function adcEnd(run,v){
+  run.end=true; adcStop(run);
+  if(v.mode==='fail'&&typeof v.failIdx!=='number') v.failIdx=ADP.stageIndex(run.st.stage||'open');
+  adcShow(run,v);
+  if(v.mode==='done') goal('ad_done');
+}
+function adcTick(run){
+  if(run.end||run.paused) return;
+  if(!adcAlive(run)){ run.dead=true; adcStop(run); return; }
+  adcShow(run,ADP.view(run.resp,run.st,Date.now()));
+}
+/* Опрос — по nextDelay: 3 с при NEW, стоп на DONE/FAILED; 429, 5xx и сеть — 6 с и тихий повтор */
+function adcPoll(run){
+  run.poll=null;
+  if(run.end||run.paused||run.busy) return;
+  if(!adcAlive(run)){ run.dead=true; adcStop(run); return; }
+  if(Date.now()-run.st.sentAt>AD_GIVEUP_MS){ adcEnd(run,{mode:'fail',message:AD_TXT.slow}); return; }
+  run.busy=true;
+  var p=run.mock?Promise.resolve({status:200,data:ADP.mockResponse(run.mock,Date.now()-run.st.sentAt)})
+                :adApi('/api/listing-status?listing_id='+encodeURIComponent(run.id));
+  p.then(function(res){ adcGot(run,res); },function(){ adcGot(run,null); });
+}
+function adcGot(run,res){
+  run.busy=false;
+  if(run.end||run.dead) return;
+  var d=(res&&res.data)||{}, code=res?res.status:0;
+  var kind=!res?'network':(code===200&&!d.error?'ok':'http');
+  var next=ADP.nextDelay(kind,code,d);
+  if(kind==='ok'){
+    var v=ADP.view(d,run.st,Date.now());
+    if(v.mode==='done'){ if(run.reuseAge) run.age=adWhen(run.reuseAge); adcEnd(run,v); return; }
+    run.reuseAge=0;
+    if(v.mode==='fail'){ adcEnd(run,v); return; }
+    run.resp=d; adcShow(run,v);
+    if(next===null) next=ADP.POLL_MS;
+  } else if(next===null){
+    adcEnd(run,{mode:'fail',message:d.message||(code===404?AD_TXT.lost:AD_TXT.net)}); return;
+  }
+  if(!run.paused){ clearTimeout(run.poll); run.poll=setTimeout(function(){ adcPoll(run); },next); }
+}
+/* Уход со страницы — опрос и таймер снимаются; вернулись на вкладку — опрос продолжается */
+function adcPause(){ var r=adCur; if(r&&!r.end&&!r.dead){ r.paused=true; adcStop(r); } }
+function adcResume(){
+  var r=adCur; if(!r||!r.paused||r.end||r.dead) return;
+  r.paused=false;
+  r.tick=setInterval(function(){ adcTick(r); },1000);
+  if(r.id) adcPoll(r);
+}
+document.addEventListener('visibilitychange',function(){ if(document.hidden) adcPause(); else adcResume(); });
+window.addEventListener('pagehide',adcPause);
+window.addEventListener('pageshow',function(e){ if(e.persisted) adcResume(); });
+function adRun(f,url,email,force,mkt,mock){
+  var box=f.querySelector('.form-done'); if(!box) return;
+  if(adCur){ adCur.dead=true; adcStop(adCur); }
+  var run=adCur={f:f,box:box,url:url,email:email,mkt:mkt,mock:mock||'',id:null,age:'',reuseAge:0,
+                 resp:{status:'NEW',stage:'queued'},st:ADP.newState(Date.now()),mode:'',
+                 end:false,dead:false,paused:document.hidden,busy:false,poll:null,tick:null};
+  f.classList.add('sent'); f.classList.add('ad-run');
+  if(!mock&&!adSupported(url)){ adcEnd(run,{mode:'fail',message:adHost(url)?AD_TXT.badHost:AD_TXT.badUrl}); return; }
+  adcShow(run,ADP.view(run.resp,run.st,Date.now()));
+  if(!run.paused) run.tick=setInterval(function(){ adcTick(run); },1000);
+  if(mock){ run.id='ls-0000000000000000'; adcPoll(run); return; }
   var body={url:url};
   if(email) body.email=email;
   if(force) body.force=true;
   if(AD_SEND_MKT){ body.marketing_consent=!!mkt; body.marketing_consent_rev=AD_MKT_REV; }
   adApi('/api/listing',{method:'POST',body:body}).then(function(res){
-    if(res.status>=400||res.data.error){ fail(adError(res)); return; }
+    if(run.dead) return;
+    if(res.status>=400||res.data.error){ adcEnd(run,{mode:'fail',message:adError(res)}); return; }
     var id=res.data.listing_id;
-    if(!id){ fail(AD_TXT.net); return; }
+    if(!id){ adcEnd(run,{mode:'fail',message:AD_TXT.net}); return; }
+    run.id=id;
     /* Готовый свежий разбор приходит сразу: только у него есть возраст. */
-    if(res.data.reused&&typeof res.data.report_age_sec==='number'){
-      var age=res.data.report_age_sec;
-      adApi('/api/listing-status?listing_id='+encodeURIComponent(id)).then(function(st){
-        if(st.data.status==='DONE'&&st.data.report_url) finish(st.data.report_url,age);
-        else wait(id);
-      }).catch(function(){ wait(id); });
-      return;
-    }
-    wait(id);
-  }).catch(function(){ fail(AD_TXT.busy); });  /* шлюз режет частые отправки без ответа: браузер видит ошибку сети */
+    if(res.data.reused&&typeof res.data.report_age_sec==='number') run.reuseAge=res.data.report_age_sec;
+    adcPoll(run);
+  }).catch(function(){ if(!run.dead) adcEnd(run,{mode:'fail',message:AD_TXT.busy}); });  /* шлюз режет частые отправки без ответа: браузер видит ошибку сети */
+}
+/* ?mock=progress|done|fail — карточка сразу после загрузки, без отправки формы и без сети */
+function adMockFromQuery(){
+  var mk=''; try{ mk=new URLSearchParams(location.search||'').get('mock')||''; }catch(x){}
+  if(['progress','done','fail'].indexOf(mk)<0) return;
+  var f=document.getElementById('mForm'); if(!f||!SVC.ad) return;
+  openForm('svc','ad');
+  adRun(f,'','name@example.ru',false,false,mk);
 }
 /* Из готового отчёта человек приходит на страницу со ссылкой вида ?kn=…&ref=…
    Номер подставляется в форму платной проверки, метка нужна для подсчёта
@@ -1422,6 +1700,7 @@ document.addEventListener('click',function(e){
 flashIn();
 init(here());
 adFromQuery();
+adMockFromQuery();
 })();
 
 /* ===== Новое оформление 2026-10: каталог описаний и поведение блоков ===== */
