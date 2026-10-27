@@ -2752,3 +2752,10 @@ form.ad-run .form-done .adc-h{margin:0;font-size:26px;line-height:1.2;color:var(
 @keyframes adc-beam{0%{transform:translateX(-120%)}100%{transform:translateX(320%)}}
 @media (prefers-reduced-motion:reduce){.adc-pulse,.adc-beam{animation:none}.adc-beam{display:none}.adc-fill{transition:none}}
 @media (max-width:560px){form.ad-run .form-done .adc-h{font-size:22px}.adc{gap:16px}}
+/* PHOTO-TILES-V1 (наряд 144): плитки снимков на этапе «Смотрим фотографии» — по готовности */
+.adc-st li[data-st="photos"] .adc-tx{flex:1;min-width:0}
+.adc-tl{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:8px;max-width:372px}
+.adc-tc{position:relative;aspect-ratio:4/3;border-radius:6px;background:var(--tr);overflow:hidden}
+.adc-tc img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .4s ease}
+.adc-tc img.on{opacity:1}
+@media (prefers-reduced-motion:reduce){.adc-tc img{transition:none}}
