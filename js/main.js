@@ -589,6 +589,7 @@ function openForm(kind,key){
   document.getElementById('fmSurvey').innerHTML=needSurvey?surveyHtml():'';
   if(isDD) ddRefreshSurvey(f);
   document.getElementById('fmAgrees').innerHTML=isDD?ddAgreesHtml():agreesHtml();
+  adFormTexts(f,kind==='svc'&&key==='ad');
   var btn=f.querySelector('.submit');
   btn.innerHTML=(price?'Перейти к оплате':(kind==='sub'?'Оформить по абонементу':'Отправить заявку'))+ARR;
   pending={kind:kind,key:key,name:svcName,price:price,ptxt:ptxt};
@@ -1324,6 +1325,18 @@ function adMockFromQuery(){
   var f=document.getElementById('mForm'); if(!f||!SVC.ad) return;
   openForm('svc','ad');
   adRun(f,'','name@example.ru',false,false,mk);
+}
+/* Наряд 143, E.5: у бесплатного разбора свои подписи. Окно формы общее с платными услугами, поэтому
+   общие deliveryHtml/agreesHtml и строка об оплате в разметке не меняются: правим только открытую
+   форму разбора, а у остальных форм строку об оплате возвращаем. */
+function adFormTexts(f,isAd){
+  var note=f.querySelector('.form-note'); if(note) note.style.display=isAd?'none':'';
+  if(!isAd) return;
+  var mail=f.querySelector('#fmFields [name="email"]'), hint=mail&&mail.parentNode.querySelector('.hint');
+  if(hint) hint.textContent='Разбор придёт письмом с адреса sales@mayak-legal.ru';
+  var ag=f.querySelectorAll('#fmAgrees .agree');
+  if(ag[1]) ag[1].querySelector('span:last-child').innerHTML=
+    'Принимаю условия <button class="ctc-link" type="button" data-doc="offer" style="padding:0">публичной оферты</button>.';
 }
 /* Из готового отчёта человек приходит на страницу со ссылкой вида ?kn=…&ref=…
    Номер подставляется в форму платной проверки, метка нужна для подсчёта
