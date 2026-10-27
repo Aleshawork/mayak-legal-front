@@ -92,6 +92,113 @@ function markdown(md) {
   return out.join('\n')
 }
 
+// Оформление статьи: картинки из постов в соцсетях (публичный бакет mayak-posts),
+// выделенное первое предложение вводного абзаца. Новую статью с картинками добавьте в IMAGES:
+// cover — обложка 1200x630, cards — карточки 1080x1350 в порядке карусели.
+const IMG_BASE = 'https://storage.yandexcloud.net/mayak-posts/'
+const IMAGES = {
+ "chistaya-vypiska-ne-chistaya-kvartira": {
+  "cover": "1-1-cover",
+  "cards": [
+   "1-1"
+  ]
+ },
+ "otchayannye-domohozyajki-pozhar-u-soseda": {
+  "cover": null,
+  "cards": [
+   "1-2"
+  ]
+ },
+ "riski-pokupki-kvartiry": {
+  "cover": "1-3-cover",
+  "cards": [
+   "1-3-1",
+   "1-3-2",
+   "1-3-3",
+   "1-3-4",
+   "1-3-5"
+  ]
+ },
+ "registraciya-dogovora-do-2013-goda": {
+  "cover": null,
+  "cards": [
+   "1-5"
+  ]
+ },
+ "notarius-proveril-kvartiru-mif": {
+  "cover": null,
+  "cards": [
+   "1-7"
+  ]
+ },
+ "virdzhin-river-kvartira-ne-kak-v-obyavlenii": {
+  "cover": null,
+  "cards": [
+   "1-8"
+  ]
+ },
+ "prodavec-toropit-s-avansom": {
+  "cover": null,
+  "cards": [
+   "1-9"
+  ]
+ },
+ "red-flagi-kvartiry-na-vtorichke": {
+  "cover": null,
+  "cards": [
+   "1-10-1",
+   "1-10-2",
+   "1-10-3"
+  ]
+ },
+ "ipotechnye-kalkulyatory": {
+  "cover": null,
+  "cards": [
+   "1-13"
+  ]
+ },
+ "avans-v-den-prosmotra": {
+  "cover": null,
+  "cards": [
+   "0-4-1",
+   "0-4-2",
+   "0-4-3",
+   "0-4-4",
+   "0-4-5"
+  ]
+ },
+ "semejnaya-ipoteka-s-1-oktyabrya-2026": {
+  "cover": null,
+  "cards": [
+   "0-5-1",
+   "0-5-2"
+  ]
+ }
+}
+function img(name, w, h, alt, eager) {
+  return `<img src="${IMG_BASE}${name}.jpg" width="${w}" height="${h}" alt="${alt}" decoding="async"${eager ? '' : ' loading="lazy"'}>`
+}
+function enhance(slug, body, title) {
+  const t = esc(title)
+  const set = IMAGES[slug] || { cover: null, cards: [] }
+  let hasLead = false
+  const m = /^\s*<p>([\s\S]*?)<\/p>/.exec(body)
+  if (m && m[1].replace(/<[^>]+>/g, '').length > 120) {
+    hasLead = true
+    let lead = m[1]
+    if (!lead.includes('<b>')) lead = lead.replace(/^(.+?[.!?])(\s|$)/, '<b>$1</b>$2')
+    body = body.slice(0, m.index) + `<p class="art-lead">${lead}</p>` + body.slice(m.index + m[0].length)
+  }
+  let media = ''
+  if (set.cards.length === 1) media = `<figure class="art-fig">${img(set.cards[0], 1080, 1350, t)}</figure>`
+  else if (set.cards.length > 1) media = '<figure class="art-gal"><div class="art-gal-in">' +
+    set.cards.map((c, i) => img(c, 1080, 1350, `${t}, карточка ${i + 1} из ${set.cards.length}`)).join('') +
+    '</div><figcaption>Карточки из наших публикаций в Telegram и ВКонтакте · листайте</figcaption></figure>'
+  if (media) body = hasLead ? body.replace('</p>', '</p>\n' + media) : media + '\n' + body
+  if (set.cover) body = `<figure class="art-cover">${img(set.cover, 1200, 630, t, true)}</figure>\n` + body
+  return body
+}
+
 function page(tpl, p) {
   const url = `${SITE}/blog/${p.slug}/`
   const bread = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
@@ -100,12 +207,12 @@ function page(tpl, p) {
     { '@type': 'ListItem', position: 3, name: p.title, item: url }] }
   const art = { '@context': 'https://schema.org', '@type': 'Article', headline: p.title, description: p.description,
     datePublished: p.date, dateModified: p.updated || p.date, inLanguage: 'ru', mainEntityOfPage: url,
-    image: SITE + '/og-image.png',
+    image: (IMAGES[p.slug] && (IMAGES[p.slug].cover || IMAGES[p.slug].cards[0])) ? IMG_BASE + (IMAGES[p.slug].cover || IMAGES[p.slug].cards[0]) + '.jpg' : SITE + '/og-mayak.png',
     author: { '@type': 'Organization', name: 'Маяк', url: SITE + '/' },
     publisher: { '@type': 'Organization', name: 'Маяк', url: SITE + '/' } }
   const map = { TITLE: esc(p.title), DESC: esc(p.description), URL: url, CAT: esc(p.category), READ: esc(p.read),
     DATE_ISO: p.date, DATE_LONG: ruDate(p.date) + ' года', LD_BREAD: pyJson(bread).replace(/</g, '\\u003c'),
-    LD_ARTICLE: pyJson(art).replace(/</g, '\\u003c'), BODY: p.body }
+    LD_ARTICLE: pyJson(art).replace(/</g, '\\u003c'), BODY: enhance(p.slug, p.body, p.title) }
   return tpl.replace(/\{\{([A-Z_]+)\}\}/g, (all, k) => (k in map ? map[k] : all))
 }
 
