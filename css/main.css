@@ -2469,3 +2469,9 @@ a.doc-row{text-decoration:none;color:inherit}
 .ph-bold.ph-warning-circle:before{content:"\e4e2"}
 .ph-bold.ph-warning-diamond:before{content:"\e7fc"}
 .ph-bold.ph-x-circle:before{content:"\e4f8"}
+
+/* Выбор вида продавца: вариант «Скоро» виден, но недоступен (27.10.2026) */
+.ch-row{margin-top:6px}
+.dd-chip.ch-soon{cursor:not-allowed;color:var(--faint);background:transparent}
+.dd-chip.ch-soon:hover{box-shadow:inset 0 0 0 1px var(--hair)}
+.ch-badge{margin-left:8px;padding:2px 7px;border-radius:7px;background:var(--wash);color:var(--ink2);font-style:normal;font-size:11.5px;font-weight:600;letter-spacing:.02em}
