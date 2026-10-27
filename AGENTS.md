@@ -52,7 +52,7 @@ npm run preview # посмотреть собранный dist/
 - **Проверка объекта** (`DD_SKUS`: `obj-fast`, `obj-deep`, `obj-full`): форма → `/api/dd/form` → `/api/dd/case` → `/api/dd/upload-url` → PUT в Object Storage → `/api/dd/commit` → `/checkout/` → кнопка `#coPay` → `/api/dd/start` → переход по полю `оплата` ответа → Robokassa.
 - **Заявки на услугу** (`LEAD_SKUS`): `/api/lead` → переход по `pay_url` ответа → Robokassa.
 - `501` от `/api/dd/start` или `/api/lead` — оплата на сервере ещё не подключена; текст клиенту — «оплата подключается».
-- Возврат с Robokassa — `/payment/success/` (успех) и `/payment/fail/` (отказ), метод GET; адреса задаются в кабинете Robokassa (решения 577, § 4 и 578, § 2.2). На обеих — одна цель Метрики `robokassa_return`, страница различается по адресу. Статус заказа страницы не меняют и сервер не зовут.
+- Возврат с Robokassa — `/payment/success/` (успех) и `/payment/fail/` (отказ), метод GET; адреса задаются в кабинете Robokassa (решения 577, § 4 и 578, § 2.2). На обеих — цель Метрики `robokassa_return`; на `/payment/fail/` ещё `payment_fail` (решение 583, § 2). Статус заказа страницы не меняют и сервер не зовут.
 - Прежняя `/payment/result/?rk=ok|fail` остаётся как была: её судьбу решает Вероника. URL страниц не переименовывать.
 - **Оплату отмечает сервер** по уведомлению Robokassa (ResultURL на шлюзе). Возврат на страницу сайта оплатой не считается: клиент узнаёт о ней письмом.
 - `ESTATE_API` — адрес Yandex API Gateway. Не менять.

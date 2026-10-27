@@ -1412,11 +1412,12 @@ function drawSuccess(){
 /* Возврат из Robokassa (577, § 4; 578, § 2.2): /payment/success/ и /payment/fail/, метод GET.
    Адреса задаются в кабинете Robokassa. Статус заказа страница не меняет и сервер не зовёт:
    оплату отмечает сервер по уведомлению Robokassa, клиент узнаёт о ней письмом.
-   Цель Метрики одна — robokassa_return, страница различается по адресу (579, § 6).
+   На обеих — цель robokassa_return (579, § 6); на /payment/fail/ ещё payment_fail «Оплата не завершена» (583, § 2).
    /payment/result/ не тронута: её судьбу решает Вероника. */
 function drawPayReturn(id){
   goal('robokassa_return');
   if(id!=='payfail') return;
+  goal('payment_fail');
   /* «Попробовать ещё раз» — к своему заказу, если он остался в этой вкладке; иначе — к выбору проверки */
   var a=document.getElementById('payRetry');
   if(a&&order&&order.dd&&order.case_id) a.setAttribute('href','/checkout/');
