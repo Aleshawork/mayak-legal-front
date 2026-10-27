@@ -1997,45 +1997,100 @@ window.MAYAK = {
   if (hero) {
     var vis = $('#heroVis'), lh = $('#heroLh svg'), word = $('.word', hero);
     var poly = $('#heroBeamPoly'), bsvg = $('#heroBeam'), grad = $('#hbG');
-    var follow = null, t0 = performance.now();
+    // Луч движется «физически»: угол — пружина с демпфером, отсюда плавный разгон и торможение
+    // за курсором, неспешный возврат на слово «Маяк» и мягкий захват курсора при возвращении в рамку.
+    var B = {
+      follow: { f: 2.0, z: 0.9 },   // следование за курсором: частота (Гц) и затухание
+      home: { f: 0.8, z: 1.0 },     // возврат на слово и скольжение по нему
+      spot: { f: 1.3, z: 1.0 },     // пятно света на слове
+      maxAcc: 900, maxVel: 240,     // ограничения: °/с² и °/с
+      leaveDelay: 200,              // мс — луч задерживается там, где курсор вышел из рамки
+      capture: 700,                 // мс — мягкий захват курсора после входа в рамку
+      park: 900, ramp: 1800,        // мс — стоянка на слове и плавный разгон скольжения
+      smoothPtr: 0.07,              // с — сглаживание дрожания мыши
+      parkMin: 0.12, parkMax: 0.88  // где на слове можно «припарковаться» (0 — правый край)
+    };
+    var R2D = 180 / Math.PI, ptr = null, ptrS = null, inside = false;
+    var enterT = -1e9, leaveT = -1e9, returnT = -1e9, phase = -Math.PI / 2;
+    var ang = null, vel = 0, dist = 0, dvel = 0, last = 0, running = false, onScreen = true;
+    var clamp = function (x, a, b) { return Math.max(a, Math.min(b, x)); };
+    var sstep = function (t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+    var wrap = function (a) { return ((a % 360) + 540) % 360 - 180; };
     var wedge = function (p, ux, uy, L, spread) {
       var c = Math.cos(spread), sn = Math.sin(spread);
       var a = { x: ux * c - uy * sn, y: ux * sn + uy * c }, b = { x: ux * c + uy * sn, y: -ux * sn + uy * c };
       return [p.x - uy * 3, p.y + ux * 3, p.x + a.x * L, p.y + a.y * L, p.x + b.x * L, p.y + b.y * L, p.x + uy * 3, p.y - ux * 3].join(' ');
     };
     var frame = function (now) {
-      var hb = hero.getBoundingClientRect(), p = lamp(lh, hero);
+      var dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now;
+      var hb = hero.getBoundingClientRect(), p = lamp(lh, hero), wb = word.getBoundingClientRect();
       bsvg.setAttribute('viewBox', '0 0 ' + hb.width + ' ' + hb.height);
-      var tx, ty, L, spread = 0.085;
-      {                                                  // луч по слову «Маяк»
-        var wb = word.getBoundingClientRect();
-        if (follow) { tx = follow.x; ty = follow.y; }
-        else {
-          var k = (Math.sin((now - t0) / 2600 - Math.PI / 2) + 1) / 2;
-          tx = wb.left - hb.left - 120 + (wb.width + 160) * (1 - k); ty = wb.top - hb.top + wb.height * 0.52;
-          tx = Math.min(tx, p.x - 70);
+      var spread = 0.085, L = Math.hypot(hb.width, hb.height) * 1.2;
+      var wx = wb.left - hb.left, wy = wb.top - hb.top + wb.height * 0.52;
+      var sweepX = function (k) { return Math.min(wx - 120 + (wb.width + 160) * (1 - k), p.x - 70); };
+      // дальность пятна вдоль луча: пересечение со строкой слова, а если луч почти
+      // параллелен строке (фонарь на высоте букв) — расстояние до цели
+      var spotDist = function (x, y) {
+        var r = Math.hypot(x - p.x, y - p.y) || 1, uy = (y - p.y) / r;
+        if (Math.abs(uy) < 0.02) return r;
+        var t = (wy - p.y) / uy; return t > 0 ? Math.min(t, L) : 0;
+      };
+      var tx, ty, sp, aim = true;
+      if (inside && ptr) {                               // за курсором
+        var kp = 1 - Math.exp(-dt / B.smoothPtr);
+        ptrS = ptrS ? { x: ptrS.x + (ptr.x - ptrS.x) * kp, y: ptrS.y + (ptr.y - ptrS.y) * kp } : { x: ptr.x, y: ptr.y };
+        tx = ptrS.x; ty = ptrS.y;
+        var cap = sstep((now - enterT) / B.capture);
+        sp = { f: B.home.f + (B.follow.f - B.home.f) * cap, z: B.home.z + (B.follow.z - B.home.z) * cap };
+      } else if (now - leaveT < B.leaveDelay) {          // короткая задержка после ухода курсора
+        sp = B.follow; aim = false;
+      } else {                                           // на слово «Маяк» и скольжение по нему
+        if (returnT < leaveT && ang !== null) {          // паркуемся в ближайшей к пятну точке слова
+          returnT = now;
+          var sx = p.x + Math.cos(ang / R2D) * Math.max(0, dist);
+          phase = Math.asin(2 * clamp(1 - (sx - (wx - 120)) / (wb.width + 160), B.parkMin, B.parkMax) - 1);
         }
-        L = Math.hypot(hb.width, hb.height) * 1.2;
+        phase += dt * 1000 / 2600 * sstep((now - returnT - B.park) / B.ramp);
+        tx = sweepX((Math.sin(phase) + 1) / 2); ty = wy; sp = B.home;
       }
-      var dx = tx - p.x, dy = ty - p.y, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+      var w = 2 * Math.PI * sp.f, acc;
+      if (aim) {
+        var target = Math.atan2(ty - p.y, tx - p.x) * R2D, td = spotDist(tx, ty);
+        if (ang === null || reduce) { ang = target; vel = 0; dist = td; dvel = 0; }
+        else {
+          acc = w * w * wrap(target - ang) - 2 * sp.z * w * vel;
+          var ws = 2 * Math.PI * B.spot.f;
+          dvel += (ws * ws * (td - dist) - 2 * B.spot.z * ws * dvel) * dt; dist += dvel * dt;
+        }
+      } else acc = -2 * sp.z * w * vel;                  // гасим скорость на месте
+      if (acc !== undefined) {
+        vel = clamp(vel + clamp(acc, -B.maxAcc, B.maxAcc) * dt, -B.maxVel, B.maxVel);
+        ang = wrap(ang + vel * dt);
+      }
+      var ux = Math.cos(ang / R2D), uy = Math.sin(ang / R2D), d = Math.max(0, dist);
       poly.setAttribute('points', wedge(p, ux, uy, L, spread));
       grad.setAttribute('x1', p.x); grad.setAttribute('y1', p.y); grad.setAttribute('x2', p.x + ux * L); grad.setAttribute('y2', p.y + uy * L);
-      {                                                  // пятно света там, где луч пересекает слово
-        var w2 = word.getBoundingClientRect(), wy = w2.top - hb.top + w2.height * 0.52;
-        var t = Math.abs(uy) > 0.0001 ? (wy - p.y) / uy : -1;
-        if (t > 0) {
-          word.style.setProperty('--sx', (p.x + ux * t - (w2.left - hb.left)) + 'px');
-          word.style.setProperty('--sy', (wy - (w2.top - hb.top)) + 'px');
-          word.style.setProperty('--rw', Math.max(80, t * Math.tan(spread) * 1.6) + 'px');
-        }
-      }
-      if (!reduce) requestAnimationFrame(frame);
+      word.style.setProperty('--sx', (p.x + ux * d - wx) + 'px');      // пятно света на слове
+      word.style.setProperty('--sy', (wy - (wb.top - hb.top)) + 'px');
+      word.style.setProperty('--rw', Math.max(80, d * Math.tan(spread) * 1.6) + 'px');
+      if (!reduce && onScreen) requestAnimationFrame(frame); else running = false;
     };
+    var run = function () { if (!running && !reduce) { running = true; last = performance.now(); requestAnimationFrame(frame); } };
     hero.addEventListener('pointermove', function (e) {
       if (e.pointerType === 'touch') return;
-      var hb = hero.getBoundingClientRect(); follow = { x: e.clientX - hb.left, y: e.clientY - hb.top };
+      var hb = hero.getBoundingClientRect(), now = performance.now();
+      ptr = { x: e.clientX - hb.left, y: e.clientY - hb.top };
+      if (!inside) {                                     // вернулись почти сразу — захват не нужен
+        inside = true; ptrS = null;
+        enterT = now - (now - leaveT < B.leaveDelay ? B.capture : 0);
+      }
     });
-    hero.addEventListener('pointerleave', function () { follow = null; t0 = performance.now() - 2600 * Math.PI / 2; });
+    hero.addEventListener('pointerleave', function (e) {
+      if (e.pointerType === 'touch' || !inside) return;
+      inside = false; leaveT = performance.now();
+    });
+    // первый экран ушёл с экрана — анимацию не крутим
+    new IntersectionObserver(function (es) { onScreen = es[0].isIntersecting; if (onScreen) run(); }).observe(hero);
     // на телефоне маяк стоит справа от слова, фонарь на высоте букв
     var placeLh = function () {
       if (window.innerWidth > 860) { vis.style.top = ''; return; }
@@ -2043,7 +2098,7 @@ window.MAYAK = {
       vis.style.top = Math.max(0, wb.top - hi.top + wb.height * 0.5 - lb.height * 0.217) + 'px';
     };
     window.addEventListener('resize', placeLh);
-    ready(function () { placeLh(); requestAnimationFrame(frame); });
+    ready(function () { placeLh(); if (reduce) requestAnimationFrame(frame); else run(); });
     window.addEventListener('resize', function () { if (reduce) frame(performance.now()); });
 
     // ссылка из первого экрана переходит в рабочую форму проверки объявления
