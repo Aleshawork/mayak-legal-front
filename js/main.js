@@ -691,8 +691,15 @@ function apiJson(path, opts){
    В заказе ровно шесть полей верхнего уровня. «Не знаю» и пропуск — отсутствие ключа. */
 var DD_SKUS={'obj-fast':1,'obj-deep':1,'obj-full':1};
 var DD_DOCS_SKU='obj-full';               /* документы клиента принимаются только в расширенной */
-var DD_PD_REV='политика-2026-09-01';     /* версия формы согласия из закрытого перечня бэка */
+var DD_PD_REV='политика-2026-10-09';     /* редакция Политики из закрытого перечня бэка (spec/редакции.json); страница /privacy/ — от 9 октября 2026 (582, § 1) */
 var DD_OFFER_REV='оферта-2026-10-27';    /* редакция оферты, которую клиент открывает из формы */
+/* Согласие — тем текстом, который клиент видел у галочки: отпечаток текста и есть доказательство. */
+function agreeText(lab){ return lab?(lab.textContent||'').replace(/\s+/g,' ').trim():''; }
+var DD_ADS_REV='рассылка-2026-10-07';     /* редакция согласия «реклама» из закрытого перечня бэка (573-А) */
+/* ref — верхнее поле заказа (573-А): до 64 знаков из набора A–Z a–z 0–9 - . _ ~.
+   Иное приёмная отвергает всем заказом, поэтому такое значение не шлём вовсе (579, § 6). */
+var DD_REF_RE=/^[A-Za-z0-9._~-]{1,64}$/;
+function ddRef(){ var r=(adRef()||'').trim(); return DD_REF_RE.test(r)?r:''; }
 var DD_PD_TEXT='Даю согласие на обработку моих персональных данных в соответствии с Политикой в отношении обработки персональных данных и подтверждаю, что имею право передать приложенные документы, в том числе если они содержат персональные данные третьих лиц.';
 var DD_OFFER_TEXT='Принимаю условия публичной оферты и Порядка оплаты услуг.';
 var DD_WARRANT='Заказчик заверяет (статья 431.2 Гражданского кодекса Российской Федерации), что в отношении персональных данных иных лиц, содержащихся в документах, которые он представляет для оказания услуги, — в том числе продавца объекта, его супруга, представителей и иных лиц, указанных в документах, — он получил согласие этих лиц на обработку их персональных данных оператором либо имеет иное законное основание для передачи этих данных.';
@@ -750,6 +757,8 @@ function ddAgreesHtml(){
     '<label class="agree" style="padding-top:0"><input type="checkbox" data-agree data-dd="offer"><span class="box">'+CHK+'</span>'+
     '<span>Принимаю условия <button class="ctc-link" type="button" data-doc="offer" style="padding:0">публичной оферты</button> и <button class="ctc-link" type="button" data-doc="paydoc" style="padding:0">Порядка оплаты услуг</button>.</span></label>'+
     '<span class="agree-err"><b>!</b>Отметьте оба согласия — без них мы не вправе принять заявку</span>'+
+    '<label class="agree opt" data-dd="ads"><input type="checkbox" name="ads"><span class="box">'+CHK+'</span>'+
+    '<span>Хочу получать <button class="ctc-link" type="button" data-doc="ads" style="padding:0">рекламные и информационные рассылки</button> о проверке недвижимости, новых услугах и акциях. Отписаться можно в любой момент. <em>Необязательно</em></span></label>'+
     '</div>';
 }
 
@@ -868,6 +877,10 @@ function ddCreateCase(f,key,setBusy){
         {'вид':'оферта','дано':true,'редакция':DD_OFFER_REV,'текст':DD_OFFER_TEXT}
       ]
     };
+    /* Галочка рекламы снята — записи нет вовсе, «дано: false» не шлём (573-А) */
+    var adsLab=f.querySelector('.agree[data-dd="ads"]'), adsBox=adsLab&&adsLab.querySelector('input[name="ads"]');
+    if(adsBox&&adsBox.checked) body['согласия'].push({'вид':'реклама','дано':true,'редакция':DD_ADS_REV,'текст':agreeText(adsLab)});
+    var ref=ddRef(); if(ref) body.ref=ref;         /* верхнее поле заказа (573-А) */
     return apiDD('/api/dd/case',body);
   }).then(function(c){
     var caseId=c['дело']; if(!caseId) throw new Error('Сервис не вернул номер дела');
@@ -1584,6 +1597,19 @@ function drawSuccess(){
   if(h) h.textContent=order.price?'Оплата прошла, заказ принят':'Заказ принят';
   goal(order.price?'payment_success':'order_success');
 }
+/* Возврат из Robokassa (577, § 4; 578, § 2.2): /payment/success/ и /payment/fail/, метод GET.
+   Адреса задаются в кабинете Robokassa. Статус заказа страница не меняет и сервер не зовёт:
+   оплату отмечает сервер по уведомлению Robokassa, клиент узнаёт о ней письмом.
+   На обеих — цель robokassa_return (579, § 6); на /payment/fail/ ещё payment_fail «Оплата не завершена» (583, § 2).
+   /payment/result/ не тронута: её судьбу решает Вероника. */
+function drawPayReturn(id){
+  goal('robokassa_return');
+  if(id!=='payfail') return;
+  goal('payment_fail');
+  /* «Попробовать ещё раз» — к своему заказу, если он остался в этой вкладке; иначе — к выбору проверки */
+  var a=document.getElementById('payRetry');
+  if(a&&order&&order.dd&&order.case_id) a.setAttribute('href','/checkout/');
+}
 document.addEventListener('click',function(e){
   var payBtn=e.target.closest('#coPay');
   if(!payBtn) return;
@@ -1755,7 +1781,8 @@ var SVCP={property:1,build:1};
 var URLS={home:'/',about:'/about/',property:'/property/',build:'/build/',
  realtors:'/realtors/',reports:'/reports/',faq:'/faq/',blog:'/blog/',
  contacts:'/contacts/',legal:'/legal/',pay:'/pay/',
- checkout:'/checkout/',success:'/payment/result/',unsubscribe:'/unsubscribe/',e404:'/404/'};
+ checkout:'/checkout/',success:'/payment/result/',paysuccess:'/payment/success/',payfail:'/payment/fail/',
+ unsubscribe:'/unsubscribe/',e404:'/404/'};
 function here(){
   var p=(location.pathname||'/').replace(/\/+$/,'')||'/';
   if(p==='/'||p==='/index.html') return 'home';
@@ -1776,6 +1803,7 @@ window.go=go;
 function init(id){
   if(id==='checkout') drawCheckout();
   if(id==='success') drawSuccess();
+  if(id==='paysuccess'||id==='payfail') drawPayReturn(id);
   if(id==='faq') initFaq();
   if(id==='blog') initBlog();
   if(id==='home'){ initSea(); drawPicker(); }

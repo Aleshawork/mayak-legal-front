@@ -12,6 +12,8 @@
 /checkout /checkout/index.html 200
 /unsubscribe /unsubscribe/index.html 200
 /payment/result /payment/result/index.html 200
+/payment/success /payment/success/index.html 200
+/payment/fail /payment/fail/index.html 200
 /success /payment/result/index.html 200
 /success/ /payment/result/index.html 200
 /privacy /privacy/index.html 200

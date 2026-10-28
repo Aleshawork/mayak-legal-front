@@ -32,6 +32,12 @@ npm run preview # посмотреть собранный dist/
 
 Работающая цепочка: форма → `/checkout/` → кнопка `#coPay` → ЮKassa → `/payment/result/`.
 
+- **Проверка объекта** (`DD_SKUS`: `obj-fast`, `obj-deep`, `obj-full`): форма → `/api/dd/form` → `/api/dd/case` → `/api/dd/upload-url` → PUT в Object Storage → `/api/dd/commit` → `/checkout/` → кнопка `#coPay` → `/api/dd/start` → переход по полю `оплата` ответа → Robokassa.
+- `501` от `/api/dd/start` — оплата на сервере ещё не подключена; текст клиенту — «оплата подключается».
+- Возврат с Robokassa — `/payment/success/` (успех) и `/payment/fail/` (отказ), метод GET; адреса задаются в кабинете Robokassa (решения 577, § 4 и 578, § 2.2). На обеих — цель Метрики `robokassa_return`; на `/payment/fail/` ещё `payment_fail` (решение 583, § 2). Статус заказа страницы не меняют и сервер не зовут.
+- Прежняя `/payment/result/?rk=ok|fail` остаётся как была: её судьбу решает Вероника. URL страниц не переименовывать.
+- **Оплату отмечает сервер** по уведомлению Robokassa (ResultURL на шлюзе). Возврат на страницу сайта оплатой не считается: клиент узнаёт о ней письмом.
+- Заказ проверки объекта (`/api/dd/case`): третье согласие `{"вид":"реклама","дано":true,"редакция":DD_ADS_REV,"текст":…}` — только при отмеченной необязательной галочке; `ref` из `localStorage` `mayak_ref` — верхним полем, только если проходит правило приёмной (до 64 знаков, A–Z a–z 0–9 - . _ ~), иначе не шлётся (решения 573, 579, § 6).
 - `ESTATE_API` — адрес Yandex API Gateway. Не менять.
 - `API_PAY_SKUS` — услуги, у которых оплата реально подключена (сейчас `obj-fast`, `obj-deep`, `obj-full`). Остальные платные услуги на checkout показывают «скоро».
 - `startEstateCase` — `/api/case` → `/api/upload-url` → PUT в Object Storage → `/api/commit` → `/api/start`.
