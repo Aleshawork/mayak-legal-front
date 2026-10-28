@@ -2696,3 +2696,69 @@ a.doc-row{text-decoration:none;color:inherit}
   .x .hv[data-v="b"] .hero-lh{height:80px!important}
   .x .hv .tagline{font-size:22px!important}
 }
+
+/* ============ PROGRESS-V1 (наряд 143): карточка ожидания разбора объявления ============ */
+/* Макет 143_макет_ожидания; цвета — токены наряда. Карточка живёт в .form-done окна формы. */
+form.ad-run .form-done{background:none;padding:0;border-radius:0;color:#173241}
+.adc{--t:#173241;--d:#0D3B54;--s:#5C7686;--o:#ECA436;--g:#2E7D5B;--b:#D6E4EC;--tr:#E1EAF0;
+  display:flex;flex-direction:column;gap:18px;color:var(--t);font-family:var(--f);text-align:left}
+.adc-k{font-size:12px;letter-spacing:1.2px;text-transform:uppercase;color:var(--s);font-weight:600}
+.adc-hd{display:flex;flex-direction:column;gap:6px}
+form.ad-run .form-done .adc-h{margin:0;font-size:26px;line-height:1.2;color:var(--d);font-weight:700;letter-spacing:-.01em}
+.adc-sub{margin:0;font-size:15px;line-height:1.45;color:var(--s)}
+.adc-bar{position:relative;height:6px;border-radius:3px;background:var(--tr);overflow:hidden}
+.adc-fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--o);border-radius:3px;transition:width .6s ease}
+.adc-beam{position:absolute;top:0;bottom:0;left:0;width:30%;background:rgba(255,255,255,.55);animation:adc-beam 1.8s ease-in-out infinite}
+.adc-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.adc-st{list-style:none;margin:0;padding:0}
+.adc-st li{display:flex;gap:14px;align-items:flex-start;padding:10px 0;margin:0}
+.adc-ic{width:26px;height:26px;flex-shrink:0;box-sizing:border-box;border-radius:13px;border:2px solid #C9D9E3;
+  display:flex;align-items:center;justify-content:center;margin-top:1px}
+.adc-st li.done .adc-ic{background:var(--g);border-color:var(--g)}
+.adc-st li.active .adc-ic{border-color:var(--o)}
+.adc-st li.fail .adc-ic{background:#C0483A;border-color:#C0483A}
+.adc-pulse{display:block;width:10px;height:10px;border-radius:5px;background:var(--o);animation:adc-pulse 1.6s ease-out infinite}
+.adc-tx{display:flex;flex-direction:column;gap:2px;padding-top:2px}
+.adc-tx b{font-size:16px;font-weight:600;color:var(--s)}
+.adc-st li.done b,.adc-st li.active b,.adc-st li.fail b{color:var(--t)}
+.adc-dt{font-size:14px;line-height:1.4;color:var(--s)}
+.adc-foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;font-size:14px;color:var(--s);
+  border-top:1px solid var(--tr);padding-top:14px}
+.adc-dh{display:flex;align-items:center;gap:12px}
+.adc-ok{width:36px;height:36px;flex-shrink:0;border-radius:18px;background:var(--g);display:flex;align-items:center;justify-content:center}
+.adc-ok svg{width:18px;height:18px}
+.adc-plate{background:#FDF3E2;border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.adc-pk{font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:700;color:#8A5608}
+.adc-pt{font-size:19px;font-weight:700;color:var(--t)}
+.adc-pn{display:flex;gap:6px 22px;flex-wrap:wrap;font-size:14px;color:var(--s)}
+.adc-pn b{font-size:20px;color:var(--t)}
+.adc-pn .n-a b{color:#8A5608}
+.adc-pn .n-q b{color:var(--d)}
+.adc-plate.lv-high{background:#FAE5E1}
+.adc-plate.lv-high .adc-pk,.adc-plate.lv-high .n-a b{color:#B4472F}
+.adc-plate.lv-none{background:#E8F4ED}
+.adc-plate.lv-none .adc-pk{color:#24654A}
+.adc-btn{height:56px;width:100%;border:0;border-radius:28px;background:var(--d);color:#fff;font:inherit;font-size:17px;font-weight:600;
+  cursor:pointer;text-decoration:none;display:flex;align-items:center;justify-content:center}
+.adc-btn:hover,.adc-btn:focus-visible{background:#0A2C3F;color:#fff}
+.adc-btn2{align-self:flex-start;height:44px;padding:0 20px;border:1px solid var(--b);border-radius:22px;background:#fff;color:var(--d);
+  font:inherit;font-size:15px;font-weight:600;cursor:pointer}
+.adc-note{margin:0;font-size:14px;line-height:1.45;color:var(--s)}
+.adc-note a{color:var(--d)}
+.adc-msg{margin:0;font-size:16px;line-height:1.5;color:var(--t)}
+.adc-chip{align-self:flex-start;background:#E8F4ED;color:#24654A;border-radius:10px;padding:8px 12px;font-size:14px;font-weight:600}
+.adc .next-step{margin-top:2px}
+@keyframes adc-pulse{0%{box-shadow:0 0 0 0 rgba(236,164,54,.55)}70%{box-shadow:0 0 0 9px rgba(236,164,54,0)}100%{box-shadow:0 0 0 0 rgba(236,164,54,0)}}
+@keyframes adc-beam{0%{transform:translateX(-120%)}100%{transform:translateX(320%)}}
+@media (prefers-reduced-motion:reduce){.adc-pulse,.adc-beam{animation:none}.adc-beam{display:none}.adc-fill{transition:none}}
+@media (max-width:560px){form.ad-run .form-done .adc-h{font-size:22px}.adc{gap:16px}}
+/* PHOTO-TILES-V1 (наряд 144): плитки снимков на этапе «Смотрим фотографии» — по готовности */
+.adc-st li[data-st="photos"] .adc-tx{flex:1;min-width:0}
+.adc-tl{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:8px;max-width:372px}
+.adc-tc{position:relative;aspect-ratio:4/3;border-radius:6px;background:var(--tr);overflow:hidden}
+.adc-tc img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .4s ease}
+.adc-tc img.on{opacity:1}
+/* PHOTO-TILES-V2 (наряд 145): лишняя пустая плитка уходит плавно */
+.adc-tc{transition:opacity .35s ease}
+.adc-tc.gone{opacity:0}
+@media (prefers-reduced-motion:reduce){.adc-tc img,.adc-tc{transition:none}}
