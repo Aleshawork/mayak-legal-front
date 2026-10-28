@@ -5,7 +5,7 @@ import { existsSync, readdirSync } from 'fs'
 const pages = [
   'about', 'checklists', 'property', 'build', 'realtors', 'reports', 'faq', 'blog',
   'contacts', 'legal', 'pay', 'privacy', 'terms', 'offer', 'cookie', 'consent', 'refund', 'payment-terms', 'mailing',
-  'account', 'checkout', 'unsubscribe', 'payment/result', '404',
+  'account', 'checkout', 'unsubscribe', 'payment/result', 'payment/success', 'payment/fail', '404',
   'blog/vypiska-egrn', 'blog/zadatok-i-avans', 'blog/bankrotstvo-prodavca', 'blog/matkapital-doli-detej', 'blog/uchastok-izhs'
 ]
 // Страницы статей, которые scripts/blog.mjs собрал из content/blog, подключаются сами.
