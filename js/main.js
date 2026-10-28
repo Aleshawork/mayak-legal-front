@@ -1507,6 +1507,11 @@ function utmGet(){
 var LEAD_SKUS={'sel-full':1,'deal':1,'dkp':1,'consult':1,'deal-all':1,'land':1,
                'builder':1,'podryad':1,'priemka':1,'build-all':1};
 var LEAD_FIELDS=['seller','link','kad','addr','desc','time','builder'];
+/* Продавец-организация (решения 581, 587-Ф): у sel-full и deal заявка несёт stype —
+   отмеченный вариант выбора «Кто продавец» — и inn, если заполнен. У прочих услуг
+   этих полей нет: сервер их отвергает. «Физическое лицо» выбрать нельзя (soon); если
+   всё же придёт физлицо, клиент увидит текст отказа сервера как есть. */
+var LEAD_SELLER_SKUS={'sel-full':1,'deal':1};
 var LEAD_FORMS={formCl:'Запрос чек-листов',formCl2:'Запрос чек-листов (страница)',
                 formSamples:'Запрос примеров отчётов'};
 /* Файлы к заявке — второй шаг через /api/lead/upload-url (решение 518, § 2).
@@ -1583,6 +1588,10 @@ function leadService(f,key,setBusy){
   b.svc=key; b.service=order.name; b.order=order.num; b.amount=order.ptxt;
   b.channel='на электронную почту'; b.delivery='mail';
   LEAD_FIELDS.forEach(function(n){ if(val(n)) b[n]=val(n); });
+  if(LEAD_SELLER_SKUS[key]){
+    var st=f.querySelector('input[name="stype"]:checked'); if(st) b.stype=st.value;
+    if(val('inn')) b.inn=val('inn');
+  }
   if(Object.keys(svState).length) b.anketa=svState;
   if(setBusy) setBusy(true,'Отправляем заявку…');
   return apiLead('/api/lead',b).then(function(d){
