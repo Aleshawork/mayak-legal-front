@@ -724,13 +724,16 @@ var DD_SELLER=[['физлицо','Частное лицо'],['юрлицо','К�
   ['банкрот_гражданин','Продавец-гражданин в банкротстве'],['банкрот_организация','Продавец-компания в банкротстве'],
   ['арбитражный_управляющий','Продаёт арбитражный управляющий'],['публичный_собственник','Продаёт государство или муниципалитет']];
 
-/* Сделка и продавец — по желанию клиента (слово владельца 29.10, решение 705): группа
-   не обязательна (data-grp, а не data-one). Ничего не отмечено — поле в заказ не уходит,
-   это «не спрошено», третье состояние приёмной (решение 123); «Не знаю» — уходит словом. */
+/* Сделка и продавец (решения 705 и 707). Блок свёрнут и необязателен для клиента, но
+   ядру нужен хотя бы один вариант в каждой группе: без вида сделки молчит весь реестр,
+   без вида продавца — 95 правил. Поэтому вариант по умолчанию отмечен заранее и виден
+   клиенту («Обычная купля-продажа», «Частное лицо»), «Не знаю» в этих группах нет,
+   а группа не бывает пустой: снятие последней отметки возвращает вариант по умолчанию. */
+var DD_DEFAULT={ddDeal:'купля_продажа',ddSeller:'физлицо'};
 function ddChips(name,list,group){
+  var def=DD_DEFAULT[group];
   return '<div class="field"><label>'+esc(name)+'</label><div class="dd-chips" data-chips="'+group+'">'+
-    list.map(function(x){ return '<label class="dd-chip"><input type="checkbox" value="'+esc(x[0])+'" data-grp="'+group+'"><span>'+esc(x[1])+'</span></label>'; }).join('')+
-    '<label class="dd-chip dd-unk"><input type="checkbox" value="не_знаю" data-grp="'+group+'"><span>Не знаю</span></label>'+
+    list.map(function(x){ return '<label class="dd-chip"><input type="checkbox" value="'+esc(x[0])+'" data-grp="'+group+'"'+(x[0]===def?' checked':'')+'><span>'+esc(x[1])+'</span></label>'; }).join('')+
     '</div><span class="hint">Можно отметить несколько вариантов</span></div>';
 }
 function ddFieldsHtml(key){
@@ -744,7 +747,7 @@ function ddFieldsHtml(key){
     '<span>Покупаю долю в праве, а не объект целиком</span></label>'+
     '<div class="survey dd-more"><button class="survey-h" type="button" data-more aria-expanded="false">'+
     '<span class="l1">Сделка и продавец</span>'+
-    '<span class="l2">Необязательно. Если уже знаете — отметьте, отчёт будет точнее</span>'+
+    '<span class="l2">По умолчанию — обычная купля-продажа у частного лица. Если иначе или знаете больше — отметьте</span>'+
     '<span class="chev"><svg width="11" height="7" viewBox="0 0 11 7" aria-hidden="true"><path d="M1 1l4.5 4.5L10 1" stroke="#C87F17" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg></span>'+
     '</button><div class="survey-b"><div><div class="survey-in">'+
     ddChips('Как проходит сделка',DD_DEAL,'ddDeal')+
@@ -776,6 +779,13 @@ document.addEventListener('click',function(e){
   var b=e.target.closest&&e.target.closest('[data-more]'); if(!b) return;
   var box=b.closest('.dd-more'); if(!box) return;
   var on=box.classList.toggle('open'); b.setAttribute('aria-expanded',on?'true':'false');
+});
+/* Группа «Сделка и продавец» не бывает пустой: сняли последнюю отметку — вернулся вариант по умолчанию */
+document.addEventListener('change',function(e){
+  var t=e.target; if(!t||!t.dataset||!t.dataset.grp||t.checked) return;
+  var g=t.dataset.grp, def=DD_DEFAULT[g]; if(!def) return;
+  var box=t.closest('.dd-chips'); if(!box||box.querySelector('input:checked')) return;
+  var d=box.querySelector('input[value="'+def+'"]'); if(d) d.checked=true;
 });
 /* Чипы: «Не знаю» исключает остальные варианты группы и наоборот */
 document.addEventListener('change',function(e){
