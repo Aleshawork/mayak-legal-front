@@ -724,11 +724,14 @@ var DD_SELLER=[['физлицо','Частное лицо'],['юрлицо','К�
   ['банкрот_гражданин','Продавец-гражданин в банкротстве'],['банкрот_организация','Продавец-компания в банкротстве'],
   ['арбитражный_управляющий','Продаёт арбитражный управляющий'],['публичный_собственник','Продаёт государство или муниципалитет']];
 
-function ddChips(name,list,group,err){
+/* Сделка и продавец — по желанию клиента (слово владельца 29.10, решение 705): группа
+   не обязательна (data-grp, а не data-one). Ничего не отмечено — поле в заказ не уходит,
+   это «не спрошено», третье состояние приёмной (решение 123); «Не знаю» — уходит словом. */
+function ddChips(name,list,group){
   return '<div class="field"><label>'+esc(name)+'</label><div class="dd-chips" data-chips="'+group+'">'+
-    list.map(function(x){ return '<label class="dd-chip"><input type="checkbox" value="'+esc(x[0])+'" data-one="'+group+'"><span>'+esc(x[1])+'</span></label>'; }).join('')+
-    '<label class="dd-chip dd-unk"><input type="checkbox" value="не_знаю" data-one="'+group+'"><span>Не знаю</span></label>'+
-    '</div><span class="hint">Можно отметить несколько вариантов</span><span class="err"><b>!</b>'+esc(err)+'</span></div>';
+    list.map(function(x){ return '<label class="dd-chip"><input type="checkbox" value="'+esc(x[0])+'" data-grp="'+group+'"><span>'+esc(x[1])+'</span></label>'; }).join('')+
+    '<label class="dd-chip dd-unk"><input type="checkbox" value="не_знаю" data-grp="'+group+'"><span>Не знаю</span></label>'+
+    '</div><span class="hint">Можно отметить несколько вариантов</span></div>';
 }
 function ddFieldsHtml(key){
   var base=(FORMS[key]||{f:[]}).f.map(fieldHtml).join('');
@@ -739,8 +742,14 @@ function ddFieldsHtml(key){
     '</select><span class="err"><b>!</b>Выберите тип объекта — от него зависят вопросы и правила проверки</span></div>'+
     '<label class="agree dd-share"><input type="checkbox" name="dd_share" value="доля"><span class="box">'+CHK+'</span>'+
     '<span>Покупаю долю в праве, а не объект целиком</span></label>'+
-    ddChips('Как проходит сделка',DD_DEAL,'ddDeal','Отметьте хотя бы один вариант или «Не знаю»')+
-    ddChips('Кто продаёт',DD_SELLER,'ddSeller','Отметьте хотя бы один вариант или «Не знаю»')+
+    '<div class="survey dd-more"><button class="survey-h" type="button" data-more aria-expanded="false">'+
+    '<span class="l1">Сделка и продавец</span>'+
+    '<span class="l2">Необязательно. Если уже знаете — отметьте, отчёт будет точнее</span>'+
+    '<span class="chev"><svg width="11" height="7" viewBox="0 0 11 7" aria-hidden="true"><path d="M1 1l4.5 4.5L10 1" stroke="#C87F17" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg></span>'+
+    '</button><div class="survey-b"><div><div class="survey-in">'+
+    ddChips('Как проходит сделка',DD_DEAL,'ddDeal')+
+    ddChips('Кто продаёт',DD_SELLER,'ddSeller')+
+    '</div></div></div></div>'+
     '<div class="field"><label for="dd-mail">Электронная почта</label>'+
     '<input id="dd-mail" name="email" type="email" placeholder="name@example.ru" data-req data-mail>'+
     '<span class="hint">Отчёт и чек придут письмом с адреса sales@mayak-legal.ru</span>'+
@@ -762,6 +771,12 @@ function ddAgreesHtml(){
     '</div>';
 }
 
+/* «Сделка и продавец» — раскрыть и свернуть */
+document.addEventListener('click',function(e){
+  var b=e.target.closest&&e.target.closest('[data-more]'); if(!b) return;
+  var box=b.closest('.dd-more'); if(!box) return;
+  var on=box.classList.toggle('open'); b.setAttribute('aria-expanded',on?'true':'false');
+});
 /* Чипы: «Не знаю» исключает остальные варианты группы и наоборот */
 document.addEventListener('change',function(e){
   var t=e.target; if(!t||!t.closest) return;
@@ -829,7 +844,7 @@ document.addEventListener('change',function(e){
 });
 
 function ddChecked(f,group){
-  var v=[].slice.call(f.querySelectorAll('input[data-one="'+group+'"]:checked')).map(function(x){ return x.value; });
+  var v=[].slice.call(f.querySelectorAll('input[data-grp="'+group+'"]:checked')).map(function(x){ return x.value; });
   if(!v.length) return undefined;
   if(v.indexOf('не_знаю')>=0) return 'не_знаю';
   return v;
