@@ -877,6 +877,100 @@ function ddCheckFiles(files){
     if(!file.size) throw new Error('Файл «'+file.name+'» пустой');
   });
 }
+/* ============ ПОИСК ОБЪЕКТА В ЕГРН ПРЯМО В ФОРМЕ (решения 596, 599, 709) ============
+   Адрес → кадастровый номер и номер → адрес через POST /api/dd/lookup. Запрос — только по
+   выходу из поля, не на каждую букву; одно и то же значение повторно не спрашивается.
+   «Не найдено» закрывает отправку; сбой, предел и прочее — нет: проверим после оплаты.
+   Печать проверки уходит в заказ, только если номер в заказе — тот самый, что нашли. */
+var EG={key:null,busy:null,st:null,msg:'',seal:null,kn:null,type:null,autoKad:null};
+var EG_TXT={
+  wait:'Проверяем объект в ЕГРН…',
+  found:'Нашли в ЕГРН: кадастровый номер {кн}{адрес}{вид}.',
+  many:'По этому адресу в ЕГРН несколько объектов. Выберите свой:',
+  cut:'По этому адресу в ЕГРН много объектов. Укажите номер квартиры или кадастровый номер.',
+  no_addr:'По этому адресу объект в ЕГРН не найден. Проверьте номер квартиры и написание адреса или укажите кадастровый номер.',
+  no_kn:'Объект с таким кадастровым номером в ЕГРН не найден. Проверьте номер.',
+  removed:'Этот объект снят с кадастрового учёта. Проверить его по сведениям ЕГРН нельзя.',
+  kind:'По ЕГРН это {вид_егрн}, а в заказе выбрано «{вид_формы}». Проверьте номер или тип объекта.',
+  city:'Укажите адрес полностью: город, улицу, дом и квартиру.',
+  badkn:'Кадастровый номер записан с ошибкой. Пример: 77:01:0001001:1234.',
+  fail:'Не удалось проверить объект сейчас. Оформите заказ — мы проверим его после оплаты.'
+};
+function egVal(f,n){ return ((f.querySelector('[name="'+n+'"]')||{}).value||'').trim(); }
+function egTypeLabel(v){ for(var i=0;i<DD_OBJ.length;i++) if(DD_OBJ[i][0]===v) return DD_OBJ[i][1]; return v; }
+function egBox(f){
+  var b=f.querySelector('.eg-msg'); if(b) return b;
+  var a=f.querySelector('[name="addr"]'), w=a&&a.closest('.field'); if(!w) return null;
+  w.insertAdjacentHTML('afterend','<div class="eg-msg" aria-live="polite" hidden></div>');
+  return f.querySelector('.eg-msg');
+}
+function egShow(f,cls,html){ var b=egBox(f); if(!b) return; b.className='eg-msg'+(cls?' eg-'+cls:''); b.innerHTML=html||''; b.hidden=!html; }
+function egReset(f){ EG.key=null; EG.busy=null; EG.st=null; EG.msg=''; EG.seal=null; EG.kn=null; egShow(f,'',''); }
+function egFill(t,m){ return t.replace(/\{(\S+?)\}/g,function(_,k){ return m[k]!==undefined?m[k]:''; }); }
+function egApply(f,d,type,by){
+  var ish=d['исход'], why=d['причина']||'';
+  if(ish==='найден'){
+    EG.st='найден'; EG.seal=d['печать']||null; EG.kn=d['кадастровый_номер']||null; EG.type=type;
+    var kad=f.querySelector('[name="kad"]'), addr=f.querySelector('[name="addr"]');
+    if(by==='addr'&&kad&&EG.kn&&(!kad.value.trim()||kad.value.trim()===EG.autoKad)){ kad.value=EG.kn; EG.autoKad=EG.kn; }
+    if(by==='kad'&&addr&&d['адрес_егрн']&&!addr.value.trim()) addr.value=d['адрес_егрн'];
+    egShow(f,'ok',esc(egFill(EG_TXT.found,{'кн':EG.kn||'',
+      'адрес':d['адрес_егрн']?', '+d['адрес_егрн']:'', 'вид':d['вид_егрн']?', '+String(d['вид_егрн']).toLowerCase():''})));
+    return;
+  }
+  if(ish==='несколько'){
+    EG.st='несколько';
+    var c=d['кандидаты']||[];
+    if(why==='ответ_обрезан'||!c.length){ egShow(f,'soft',esc(EG_TXT.cut)); return; }
+    egShow(f,'soft',esc(EG_TXT.many)+'<span class="eg-list">'+c.slice(0,10).map(function(x){
+      return '<button type="button" class="eg-pick" data-kn="'+esc(x['кадастровый_номер']||'')+'">'+
+        '<b>'+esc(x['кадастровый_номер']||'')+'</b>'+(x['адрес']?' · '+esc(x['адрес']):'')+'</button>'; }).join('')+'</span>');
+    return;
+  }
+  if(ish==='не_найден'){
+    var t={'нет_в_егрн':by==='kad'?EG_TXT.no_kn:EG_TXT.no_addr,'снят_с_учёта':EG_TXT.removed,'нет_города':EG_TXT.city,
+           'номер_отвергнут':EG_TXT.badkn,
+           'вид_не_тот':egFill(EG_TXT.kind,{'вид_егрн':String(d['вид_егрн']||'другой объект').toLowerCase(),'вид_формы':egTypeLabel(type)})}[why]
+         ||(by==='kad'?EG_TXT.no_kn:EG_TXT.no_addr);
+    EG.st='не_найден'; EG.msg=t; egShow(f,'bad',esc(t)); return;
+  }
+  if(ish==='не_проверяется'){ EG.st=null; egShow(f,'',''); return; }
+  EG.st='сбой'; egShow(f,'soft',esc(EG_TXT.fail));
+}
+function egRun(f,by){
+  var type=egVal(f,'dd_type'); if(!type) return null;
+  var q=egVal(f,by); if(!q) return null;
+  var key=type+'|'+by+'|'+q; if(EG.key===key) return EG.busy;
+  EG.key=key; EG.st=null; EG.msg=''; EG.seal=null; EG.kn=null;
+  egShow(f,'wait',esc(EG_TXT.wait));
+  var body={'тип_объекта':type}; body[by==='kad'?'кадастровый_номер':'адрес']=q;
+  var p=apiDD('/api/dd/lookup',body).then(function(d){ if(EG.key===key) egApply(f,d,type,by); },
+    function(){ if(EG.key===key){ EG.st='сбой'; egShow(f,'soft',esc(EG_TXT.fail)); } })
+  .then(function(){ if(EG.key===key) EG.busy=null; refresh(f); });
+  EG.busy=p; return p;
+}
+function egForm(t){ var f=t&&t.closest&&t.closest('.mk-form'); return f&&f.querySelector('[name="dd_type"]')?f:null; }
+document.addEventListener('focusout',function(e){
+  var t=e.target, f=egForm(t); if(!f||(t.name!=='kad'&&t.name!=='addr')) return;
+  if(t.name==='kad') egRun(f,'kad');
+  else { var k=egVal(f,'kad'); if(!k||k===EG.autoKad) egRun(f,'addr'); }
+});
+document.addEventListener('input',function(e){
+  var t=e.target, f=egForm(t); if(!f||(t.name!=='kad'&&t.name!=='addr')) return;
+  if(t.name==='kad') EG.autoKad=null;
+  egReset(f);
+});
+document.addEventListener('change',function(e){
+  var t=e.target, f=egForm(t); if(!f||t.name!=='dd_type') return;
+  egReset(f);
+  if(egVal(f,'kad')) egRun(f,'kad'); else if(egVal(f,'addr')) egRun(f,'addr');
+});
+document.addEventListener('click',function(e){
+  var b=e.target.closest&&e.target.closest('.eg-pick'); if(!b) return;
+  var f=egForm(b); if(!f) return;
+  var kad=f.querySelector('[name="kad"]'); if(kad){ kad.value=b.getAttribute('data-kn'); EG.autoKad=kad.value; }
+  egReset(f); egRun(f,'kad');
+});
 function ddCreateCase(f,key,setBusy){
   var val=function(n){ return ((f.querySelector('[name="'+n+'"]')||{}).value||'').trim(); };
   var types=ddTypes(f);
@@ -885,10 +979,15 @@ function ddCreateCase(f,key,setBusy){
   var files=(key===DD_DOCS_SKU&&fileInput&&fileInput.files)?[].slice.call(fileInput.files):[];
   ddCheckFiles(files);
   if(setBusy) setBusy(true,'Создаём заказ…');
-  return ddLoadForm(types).then(function(fm){
+  return Promise.resolve(EG.busy).then(function(){
+    if(EG.st==='не_найден') throw new Error(EG.msg||EG_TXT.no_addr);
+    return ddLoadForm(types);
+  }).then(function(fm){
     var obj={'тип_объекта':types};
     if(val('kad')) obj['кадастровый_номер']=val('kad');
     if(val('addr')) obj['адрес']=val('addr');
+    /* печать — только у того номера, что нашли, и того типа, по которому искали */
+    if(EG.st==='найден'&&EG.seal&&EG.kn&&obj['кадастровый_номер']===EG.kn&&types[0]===EG.type) obj['проверен_в_форме']=EG.seal;
     var deal=ddChecked(f,'ddDeal'), sel=ddChecked(f,'ddSeller');
     if(deal!==undefined) obj['тип_сделки']=deal;
     if(sel!==undefined) obj['тип_продавца']=sel;

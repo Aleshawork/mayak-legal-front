@@ -2762,3 +2762,12 @@ form.ad-run .form-done .adc-h{margin:0;font-size:26px;line-height:1.2;color:var(
 .adc-tc{transition:opacity .35s ease}
 .adc-tc.gone{opacity:0}
 @media (prefers-reduced-motion:reduce){.adc-tc img,.adc-tc{transition:none}}
+
+/* Поиск объекта в ЕГРН в форме заказа (решение 709) */
+.eg-msg{margin:-4px 0 14px;padding:11px 14px;border-radius:12px;font-size:13.6px;line-height:1.45;background:var(--bg);color:var(--soft);box-shadow:inset 0 0 0 1px var(--hair)}
+.eg-msg.eg-ok{color:var(--deep);background:#EEF6EF;box-shadow:inset 0 0 0 1px #CFE3D2}
+.eg-msg.eg-bad{color:#9A2F22;background:#FBEFEC;box-shadow:inset 0 0 0 1px #F0CFC8}
+.eg-msg.eg-wait{color:var(--soft)}
+.eg-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.eg-pick{text-align:left;padding:9px 12px;border-radius:10px;background:#fff;box-shadow:inset 0 0 0 1px var(--hair);font-size:13.4px;color:var(--deep)}
+.eg-pick:hover{box-shadow:inset 0 0 0 1px var(--deep)}
