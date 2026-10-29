@@ -397,9 +397,9 @@ function surveyHtml(){
   var L=svList(), must=L.filter(function(q){ return q.must; }).length;
   return '<div class="survey" id="svBox"><button class="survey-h" type="button" id="svToggle">'+
     (SV?'<span class="l1">Вопросы о сделке</span>'+
-        '<span class="l2">'+L.length+' '+plural(L.length,'вопрос','вопроса','вопросов')+(must?', из них '+must+' '+plural(must,'важный','важных','важных'):'')+'. Можно пропустить любой или ответить «Не знаю»</span>'
+        '<span class="l2">'+L.length+' '+plural(L.length,'вопрос','вопроса','вопросов')+(must?', из них '+must+' '+plural(must,'важный','важных','важных'):'')+'. Необязательно: отвечайте, если знаете, — каждый ответ делает юридический анализ в отчёте точнее. Любой вопрос можно пропустить</span>'
        :'<span class="l1">Вопросы о сделке</span>'+
-        '<span class="l2">'+L.length+' '+plural(L.length,'вопрос','вопроса','вопросов')+(must?', из них '+must+' '+plural(must,'важный','важных','важных'):'')+'. Можно пропустить любой или ответить «Не знаю»</span>')+
+        '<span class="l2">'+L.length+' '+plural(L.length,'вопрос','вопроса','вопросов')+(must?', из них '+must+' '+plural(must,'важный','важных','важных'):'')+'. Необязательно: отвечайте, если знаете, — каждый ответ делает юридический анализ в отчёте точнее. Любой вопрос можно пропустить</span>')+
     '<span class="chev"><svg width="11" height="7" viewBox="0 0 11 7" aria-hidden="true"><path d="M1 1l4.5 4.5L10 1" stroke="#C87F17" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg></span>'+
     '</button><div class="survey-b"><div><div class="survey-in"><div class="qtrack" id="svTrack"></div>'+
     '<div class="qbar"><i id="svBar" style="width:0%"></i></div></div></div></div></div>';
