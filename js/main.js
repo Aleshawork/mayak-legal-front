@@ -894,7 +894,8 @@ var EG_TXT={
   kind:'По ЕГРН это {вид_егрн}, а в заказе выбрано «{вид_формы}». Проверьте номер или тип объекта.',
   city:'Укажите адрес полностью: город, улицу, дом и квартиру.',
   badkn:'Кадастровый номер записан с ошибкой. Пример: 77:01:0001001:1234.',
-  fail:'Не удалось проверить объект сейчас. Оформите заказ — мы проверим его после оплаты.'
+  fail:'Не удалось проверить объект сейчас. Оформите заказ — мы проверим его после оплаты.',
+  limit:'Лимит проверок в ЕГРН сейчас исчерпан. Заказ можно продолжить по адресу или кадастровому номеру — мы проверим объект после оплаты.'
 };
 function egVal(f,n){ return ((f.querySelector('[name="'+n+'"]')||{}).value||'').trim(); }
 function egTypeLabel(v){ for(var i=0;i<DD_OBJ.length;i++) if(DD_OBJ[i][0]===v) return DD_OBJ[i][1]; return v; }
@@ -935,7 +936,7 @@ function egApply(f,d,type,by){
     EG.st='не_найден'; EG.msg=t; egShow(f,'bad',esc(t)); return;
   }
   if(ish==='не_проверяется'){ EG.st=null; egShow(f,'',''); return; }
-  EG.st='сбой'; egShow(f,'soft',esc(EG_TXT.fail));
+  EG.st='сбой'; egShow(f,'soft',esc(why==='предел'?EG_TXT.limit:EG_TXT.fail));
 }
 function egRun(f,by){
   var type=egVal(f,'dd_type'); if(!type) return null;
@@ -980,7 +981,7 @@ function ddCreateCase(f,key,setBusy){
   ddCheckFiles(files);
   if(setBusy) setBusy(true,'Создаём заказ…');
   return Promise.resolve(EG.busy).then(function(){
-    if(EG.st==='не_найден') throw new Error(EG.msg||EG_TXT.no_addr);
+    if(EG.st==='не_найден'){ var er=new Error(EG.msg||EG_TXT.no_addr); er.eg=true; throw er; }
     return ddLoadForm(types);
   }).then(function(fm){
     var obj={'тип_объекта':types};
@@ -1666,6 +1667,11 @@ document.addEventListener('submit',function(e){
         go('checkout',true);
       }).catch(function(err){
         setBusy(false);
+        /* «Не найдено в ЕГРН» — не окном браузера, а сообщением у поля (решение 716) */
+        if(err&&err.eg){ var m=f.querySelector('.eg-msg');
+          if(m){ m.hidden=false; m.scrollIntoView({block:'center',behavior:REDUCE?'auto':'smooth'});
+            m.classList.remove('eg-flash'); void m.offsetWidth; m.classList.add('eg-flash'); }
+          return; }
         alert(((err&&err.message)||'Не удалось оформить заказ')+'\n\nЕсли ошибка повторяется, напишите на sales@mayak-legal.ru');
       });
       return;
