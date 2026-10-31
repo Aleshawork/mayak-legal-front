@@ -1341,7 +1341,7 @@ function adcProgressHtml(){
   return '<div class="adc">'+ADC_KICK+
     '<div class="adc-hd"><h4 class="adc-h">Разбираем объявление</h4><p class="adc-sub">'+esc(ADP.TEXT.canClose)+'</p></div>'+
     '<div class="adc-bar" role="progressbar" aria-label="Ход разбора" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">'+
-      '<i class="adc-fill"></i><i class="adc-beam"></i></div>'+
+      '<i class="adc-fill"><i class="adc-beam"></i></i></div>'+
     '<p class="adc-sr" aria-live="polite"></p>'+
     adcStagesHtml()+
     '<div class="adc-foot"><span class="adc-el"></span><span class="adc-us"></span></div></div>';
