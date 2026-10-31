@@ -2147,6 +2147,27 @@ window.MAYAK = {
     }
   }
 
+  /* ---------- бегущая строка: бесшовный круг ---------- */
+  // Анимация сдвигает ленту на половину её ширины: в разметке набор надписей и его копия.
+  // На экране шире одного набора в конце круга был бы виден пустой хвост, поэтому
+  // доращиваем ленту до нужного числа наборов. Скорость движения остаётся прежней.
+  if (!reduce) $$('.ticker-track').forEach(function (tr) {
+    var orig = $$('span:not([aria-hidden])', tr), copy = $('span[aria-hidden]', tr);
+    if (!orig.length || !copy) return;
+    ready(function () {
+      var set = copy.offsetLeft - orig[0].offsetLeft; if (set <= 0) return;  // ширина набора с отступами
+      var k = Math.ceil(Math.max(window.screen.width || 0, window.innerWidth) / set);
+      if (k < 2) return;                                     // одного набора хватает на экран
+      var dur0 = parseFloat(getComputedStyle(tr).animationDuration) || 46;
+      var frag = document.createDocumentFragment();
+      for (var i = 0; i < 2 * k - 2; i++) orig.forEach(function (s) {
+        var c = s.cloneNode(true); c.setAttribute('aria-hidden', 'true'); frag.appendChild(c);
+      });
+      tr.appendChild(frag);
+      tr.style.animationDuration = (k * dur0) + 's';
+    });
+  });
+
   /* ---------- первый экран ---------- */
   var hero = $('#hero');
   if (hero) {
