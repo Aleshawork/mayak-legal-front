@@ -2158,6 +2158,7 @@ flashIn();
 init(here());
 adFromQuery();
 adMockFromQuery();
+utmCatch();                     /* метки utm — здесь, в том же блоке, где объявлена функция */
 })();
 
 /* ===== Новое оформление 2026-10: каталог описаний и поведение блоков ===== */
@@ -2679,5 +2680,4 @@ window.MAYAK = {
     h.addEventListener('click', tog);
     h.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') tog(e); });
   }
-utmCatch();
 })();
