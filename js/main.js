@@ -113,8 +113,10 @@ function drawPicker(){
       '<div class="rp">'+esc(s.p)+(s.t?' · '+esc(s.t):'')+'</div><p>'+esc(r.d)+'</p>'+
       (x?'<div class="pk-also">Дополнительно имеет смысл: <b>'+esc(x.n)+'</b> — '+esc(x.p)+'</div>':'')+
       '</div><div class="pk-acts">'+
-      '<button class="btn b-amber" type="button" data-form="svc" data-svc="'+r.s+'">Оформить заявку'+ARR+'</button>'+
-      (x?'<button class="btn b2" type="button" data-form="svc" data-svc="'+r.x+'">'+esc(x.n)+ARR+'</button>':'')+
+      (svcSoon(r.s)?'<button class="btn b-amber is-soon" type="button" disabled aria-disabled="true">Скоро</button>'
+                   :'<button class="btn b-amber" type="button" data-form="svc" data-svc="'+r.s+'">Оформить заявку'+ARR+'</button>')+
+      (x?(svcSoon(r.x)?'<button class="btn b2 is-soon" type="button" disabled aria-disabled="true">'+esc(x.n)+' — скоро</button>'
+                      :'<button class="btn b2" type="button" data-form="svc" data-svc="'+r.x+'">'+esc(x.n)+ARR+'</button>'):'')+
       '</div><button class="pk-back" type="button" data-pk="again">Пройти заново</button></div>';
   }
 }
@@ -546,7 +548,10 @@ document.addEventListener('click',function(e){
   }
 });
 
+/* Услуга «скоро» (window.MAYAK.services[key].soon): окно заказа не открывается ни из какой кнопки */
+function svcSoon(k){ var m=window.MAYAK; return !!(m&&m.services&&m.services[k]&&m.services[k].soon); }
 function openForm(kind,key){
+  if(kind==='svc'&&svcSoon(key)) return;
   var m=document.getElementById('formModal'), f=document.getElementById('mForm'); if(!m||!f) return;
   var cfg, title, sub, price=0, ptxt='', svcName='';
   packRef=null;
@@ -2284,6 +2289,7 @@ window.MAYAK = {
     },
     priemka: {
       group: 'izhs', name: 'Контроль стройки и приёмка', price: 49990, priceText: '49 990 ₽', time: '12 месяцев',
+      soon: true,   // SOON-PRIEMKA (01.11.2026): заказ выключен, кнопки «Скоро»; снять — удалить строку и вернуть кнопки на линии «Путь стройки»
       short: 'Этапы, акты, недостатки, претензии',
       inc: ['Контроль этапов и фиксация отклонений', 'Акты приёмки этапов и итоговая приёмка',
             'Осмотр и фиксация недостатков', 'Независимая строительная экспертиза при необходимости',
@@ -2575,6 +2581,7 @@ window.MAYAK = {
     h += '<div class="meta"><span>Срок <b>' + s.time + '</b></span><span>Цена <b>' + s.priceText + '</b></span></div><ul>' + s.inc.map(li).join('') + '</ul>';
     if (s.no) h += '<p class="no">' + s.no + '</p>';
     if (s.get) h += '<p class="get"><b>Вы получите</b> ' + s.get + '</p>';
+    if (s.soon) return h + '<button class="btn b-amber b-sm is-soon" type="button" disabled aria-disabled="true">Скоро</button></div>';
     return h + '<button class="btn b-amber b-sm" type="button" data-form="svc" data-svc="' + id + '">' + (id === 'consult' ? 'Записаться' : id === 'ad' ? 'Проверить бесплатно' : 'Оформить') + ARR + '</button></div>';
   }
   $$('.row[data-svc]').forEach(function (row) {
