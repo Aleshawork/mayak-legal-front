@@ -2779,3 +2779,8 @@ form.ad-run .form-done .adc-h{margin:0;font-size:26px;line-height:1.2;color:var(
 .chip.is-soon,.x .chip.is-soon,.btn.is-soon,.x .btn.is-soon,
 .chip.is-soon:hover,.x .chip.is-soon:hover,.btn.is-soon:hover,.x .btn.is-soon:hover{
   background:var(--bg2);color:var(--soft);box-shadow:none;cursor:not-allowed;transform:none}
+/* Вкладка ИЖС на главной без карточки полного сопровождения — список во всю ширину (01.11.2026) */
+.x .svc-grid.svc-grid-1{grid-template-columns:1fr}
+/* Риелторам: строка пакета «скоро» приглушена */
+.tr.is-soon>span:not(.nm){opacity:.45}
+.soon-tag{font-style:normal;font-size:.78em;font-weight:700;color:var(--soft);background:var(--bg2);padding:2px 8px;border-radius:999px;margin-left:6px;white-space:nowrap}
