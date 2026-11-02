@@ -19,9 +19,16 @@ const COVERS = {
   'Чек-листы': 'linear-gradient(135deg,#E4F1EA,#BFDCCB)'
 }
 
+// Авторы статей. По умолчанию чередуются по порядку файлов; переопределяется полем author в заголовке .md.
+const AUTHORS = [
+  { key: 'veronika', name: 'Вероника Семенова', full: 'Семенова Вероника Владимировна', role: 'основатель, юрист', anchor: 'veronika-semenova' },
+  { key: 'alexander', name: 'Александр Русяйкин', full: 'Русяйкин Александр', role: 'основатель, юрист', anchor: 'aleksandr-rusyaykin' }
+]
+
 const warn = (m) => console.warn('⚠ блог: ' + m)
 const read = (p) => readFileSync(p, 'utf8')
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+const stripTags = (s) => String(s).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
 
 // Сегодня по Москве в виде ГГГГ-ММ-ДД. BLOG_TODAY=2026-10-20 позволяет проверить будущий день.
 function today() {
@@ -56,6 +63,7 @@ function parse(file) {
   if (!/^[a-z0-9-]+$/.test(meta.slug)) throw new Error('адрес (slug) только латиница, цифры и дефис: ' + meta.slug)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(meta.date)) throw new Error('дата в виде 2026-10-20: ' + meta.date)
   if (meta.updated && !/^\d{4}-\d{2}-\d{2}$/.test(meta.updated)) throw new Error('updated в виде 2026-10-20')
+  if (meta.author && !AUTHORS.some((a) => a.key === meta.author)) throw new Error('author: одно из ' + AUTHORS.map((a) => a.key).join(', '))
   meta.category = meta.category || 'Проверка квартиры'
   meta.excerpt = meta.excerpt || meta.description
   const body = m[2].trim()
@@ -199,8 +207,40 @@ function enhance(slug, body, title) {
   return body
 }
 
+// Раздел «Частые вопросы» статьи (абзацы вида «**Вопрос?** Ответ») → FAQPage для поисковиков и ИИ.
+function faqFromBody(body) {
+  const m = /<h2>\s*Частые вопросы\s*<\/h2>([\s\S]*?)(?=<h2>|$)/.exec(body)
+  if (!m) return null
+  const items = []
+  const re = /<p><b>([\s\S]*?)<\/b>\s*([\s\S]*?)<\/p>/g
+  let q
+  while ((q = re.exec(m[1])) !== null && items.length < 12) {
+    const name = stripTags(q[1])
+    const text = stripTags(q[2])
+    if (name && text) items.push({ '@type': 'Question', 'name': name, 'acceptedAnswer': { '@type': 'Answer', 'text': text } })
+  }
+  return items.length ? { '@context': 'https://schema.org', '@type': 'FAQPage', 'mainEntity': items } : null
+}
+
+// Первый нумерованный список чек-листа → HowTo для поисковиков и ИИ.
+function howtoFromBody(p) {
+  if (p.category !== 'Чек-листы' && !/^chek-list/.test(p.slug)) return null
+  const m = /<ol>([\s\S]*?)<\/ol>/.exec(p.body)
+  if (!m) return null
+  const steps = [...m[1].matchAll(/<li>([\s\S]*?)<\/li>/g)]
+    .map((l, i) => ({ '@type': 'HowToStep', 'position': i + 1, 'name': stripTags(l[1]), 'text': stripTags(l[1]) }))
+  if (steps.length < 2) return null
+  return { '@context': 'https://schema.org', '@type': 'HowTo', 'name': p.title, 'description': p.description, 'inLanguage': 'ru', 'step': steps }
+}
+
+function ldScript(obj) {
+  return `<script type="application/ld+json">${pyJson(obj).replace(/</g, '\\u003c')}</script>`
+}
+
 function page(tpl, p) {
   const url = `${SITE}/blog/${p.slug}/`
+  const author = AUTHORS.find((a) => a.key === p.author) || AUTHORS[0]
+  const authorUrl = `${SITE}/about/#${author.anchor}`
   const bread = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
     { '@type': 'ListItem', position: 1, name: 'Главная', item: SITE + '/' },
     { '@type': 'ListItem', position: 2, name: 'Блог', item: SITE + '/blog/' },
@@ -208,11 +248,15 @@ function page(tpl, p) {
   const art = { '@context': 'https://schema.org', '@type': 'Article', headline: p.title, description: p.description,
     datePublished: p.date, dateModified: p.updated || p.date, inLanguage: 'ru', mainEntityOfPage: url,
     image: (IMAGES[p.slug] && (IMAGES[p.slug].cover || IMAGES[p.slug].cards[0])) ? IMG_BASE + (IMAGES[p.slug].cover || IMAGES[p.slug].cards[0]) + '.jpg' : SITE + '/og-mayak.png',
-    author: { '@type': 'Organization', name: 'Маяк', url: SITE + '/' },
-    publisher: { '@type': 'Organization', name: 'Маяк', url: SITE + '/' } }
+    author: { '@type': 'Person', '@id': authorUrl, 'name': author.full, 'jobTitle': 'Основатель, юрист', 'url': authorUrl },
+    publisher: { '@type': 'Organization', '@id': SITE + '/#org', 'name': 'Маяк', 'url': SITE + '/' } }
+  const faq = faqFromBody(p.body), howto = howtoFromBody(p)
+  const extra = [faq, howto].filter(Boolean).map(ldScript).join('\n')
   const map = { TITLE: esc(p.title), DESC: esc(p.description), URL: url, CAT: esc(p.category), READ: esc(p.read),
     DATE_ISO: p.date, DATE_LONG: ruDate(p.date) + ' года', LD_BREAD: pyJson(bread).replace(/</g, '\\u003c'),
-    LD_ARTICLE: pyJson(art).replace(/</g, '\\u003c'), BODY: enhance(p.slug, p.body, p.title) }
+    LD_ARTICLE: pyJson(art).replace(/</g, '\\u003c'), LD_EXTRA: extra,
+    AUTHOR: ` · Автор: <a class="link-a" href="/about/#${author.anchor}">${author.name}</a>, ${author.role}`,
+    BODY: enhance(p.slug, p.body, p.title) }
   return tpl.replace(/\{\{([A-Z_]+)\}\}/g, (all, k) => (k in map ? map[k] : all))
 }
 
@@ -275,12 +319,14 @@ function main() {
   const tpl = read(tplFile)
   const now = today()
   const published = [], waiting = [], seen = new Set()
+  let authorFlip = 0
   for (const name of readdirSync(SRC).filter((n) => n.endsWith('.md') && !n.startsWith('_')).sort()) {
     let p
     try { p = parse(join(SRC, name)) } catch (e) { warn(`${name} пропущен: ${e.message}`); continue }
     if (seen.has(p.slug)) { warn(`${name} пропущен: адрес ${p.slug} уже занят другим файлом`); continue }
     seen.add(p.slug)
     if (p.date > now) { waiting.push(`${p.date} ${p.slug}`); continue }
+    if (!p.author) { p.author = AUTHORS[authorFlip % AUTHORS.length].key; authorFlip++ }
     try {
       const dir = join(ROOT, 'blog', p.slug)
       mkdirSync(dir, { recursive: true })
