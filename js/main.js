@@ -1265,12 +1265,15 @@ var ADP=(function(){
     return null;
   }
 
-  // summary -> {level, alert, missing, questions, photo_notes} или null (без плашки, только кнопка)
+  // summary -> {level, alert, missing, questions, photo_notes, photos_unchecked} или null (без плашки, только кнопка).
+  // photos_unchecked (контракт 1.9.11, наряд 152): снимки сохранены, проверить их не удалось — только строгое true;
+  // нет поля (старый сервер, старый разбор) — false, карточка как раньше.
   function summaryOf(s) {
     if (!s || typeof s !== 'object') return null;
     var level = s.level === 'high' || s.level === 'medium' || s.level === 'none' ? s.level : null;
     return { level: level, alert: num(s.alert) || 0, missing: num(s.missing) || 0,
-             questions: num(s.questions) || 0, photo_notes: num(s.photo_notes) || 0 };
+             questions: num(s.questions) || 0, photo_notes: num(s.photo_notes) || 0,
+             photos_unchecked: s.photos_unchecked === true };
   }
 
   // Состояние значка этапа: done (галка), active (пульс), fail (крест), idle
@@ -1293,7 +1296,7 @@ var ADP=(function(){
     return status === 'NEW' ? POLL_MS : null;
   }
 
-  // ?mock=progress | done | fail — ответы статуса по времени от отправки (только с параметром)
+  // ?mock=progress | done | done-unchecked | fail — ответы статуса по времени от отправки (только с параметром)
   function mockResponse(kind, elapsedMs) {
     var s = elapsedMs / 1000;
     function going() {
@@ -1309,6 +1312,10 @@ var ADP=(function(){
     if (kind === 'done' && s >= 55) {
       return { status: 'DONE', report_url: '#mock-report',
                summary: { level: 'medium', alert: 3, missing: 2, questions: 5, photo_notes: 2 } };
+    }
+    if (kind === 'done-unchecked' && s >= 55) {     // наряд 152: фото сохранены, но не проверены
+      return { status: 'DONE', report_url: '#mock-report',
+               summary: { level: 'medium', alert: 1, missing: 3, questions: 5, photo_notes: 0, photos_unchecked: true } };
     }
     if (kind === 'fail' && s >= 20) {
       return { status: 'FAILED', message: 'Не удалось разобрать объявление по этой ссылке.',
@@ -1373,7 +1380,9 @@ function adcPlateHtml(s){
   if(s.alert>0) n.push([s.alert,'настораживает','a']);
   if(s.missing>0) n.push([s.missing,'не хватает','m']);
   n.push([s.questions,adWord(s.questions,'вопрос','вопроса','вопросов')+' продавцу','q']);
-  n.push([s.photo_notes,adWord(s.photo_notes,'замечание','замечания','замечаний')+' по фото','p']);
+  /* наряд 152: фото не проверены — не «0 замечаний по фото», а как в отчёте: «— фото не проверены» */
+  if(s.photos_unchecked===true) n.push(['—','фото не проверены','p']);
+  else n.push([s.photo_notes,adWord(s.photo_notes,'замечание','замечания','замечаний')+' по фото','p']);
   return '<div class="adc-plate'+(s.level?' lv-'+s.level:'')+'"><div class="adc-pk">Итог</div>'+
     (ADC_LEVEL[s.level]?'<div class="adc-pt">'+ADC_LEVEL[s.level]+'</div>':'')+
     '<div class="adc-pn">'+n.map(function(x){ return '<span class="n-'+x[2]+'"><b>'+x[0]+'</b> '+x[1]+'</span>'; }).join('')+'</div></div>';
@@ -1564,10 +1573,10 @@ function adRun(f,url,email,force,mkt,mock){
     adcPoll(run);
   }).catch(function(){ if(!run.dead) adcEnd(run,{mode:'fail',message:AD_TXT.busy}); });  /* шлюз режет частые отправки без ответа: браузер видит ошибку сети */
 }
-/* ?mock=progress|done|fail — карточка сразу после загрузки, без отправки формы и без сети */
+/* ?mock=progress|done|done-unchecked|fail — карточка сразу после загрузки, без отправки формы и без сети */
 function adMockFromQuery(){
   var mk=''; try{ mk=new URLSearchParams(location.search||'').get('mock')||''; }catch(x){}
-  if(['progress','done','fail'].indexOf(mk)<0) return;
+  if(['progress','done','done-unchecked','fail'].indexOf(mk)<0) return;
   var f=document.getElementById('mForm'); if(!f||!SVC.ad) return;
   openForm('svc','ad');
   adRun(f,'','name@example.ru',false,false,mk);
