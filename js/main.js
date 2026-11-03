@@ -637,7 +637,8 @@ function openTiers(id){
       '</div>'+
       '<div class="tier-sec"><div class="fm-t">Что входит</div>'+incList(d.i,'fm-in')+'</div>'+
       '<div class="tier-sec">'+(d.o&&d.o.length?'<div class="fm-t">Не входит</div>'+incList(d.o,'fm-out'):'')+'</div>'+
-      '<button class="btn '+(k===t.best?'b-amber':'b1')+' tier-go" type="button" data-form="svc" data-svc="'+k+'">Оформить · '+esc(s.p)+ARR+'</button>'+
+      (svcSoon(k)?'<button class="btn b1 tier-go is-soon" type="button" disabled aria-disabled="true">Скоро</button>'
+                 :'<button class="btn '+(k===t.best?'b-amber':'b1')+' tier-go" type="button" data-form="svc" data-svc="'+k+'">Оформить · '+esc(s.p)+ARR+'</button>')+
     '</div>';
   }).join('');
   openModal(m); m.querySelector('.modal-in').scrollTop=0;
@@ -2211,6 +2212,7 @@ window.MAYAK = {
       fields: ['addr', 'mail']
     },
     'obj-full': {
+      soon: true,   // SOON-OBJ-FULL (03.11.2026): заказ расширенной выключен, кнопки «Скоро» — ставятся сами (openTiers, вкладки тарифов, кнопки с data-svc); снять — удалить эту строку
       group: 're', name: 'Проверка объекта · расширенная', tierName: 'Расширенная', price: 2990, priceText: '2 990 ₽', time: 'до 2 календарных дней',
       inc: ['Всё из стандартной проверки',
             'История перехода прав, включая сроки владения, приватизацию, дарение, наследство и решения суда'],
@@ -2587,7 +2589,7 @@ window.MAYAK = {
       s.tiers.forEach(function (tid) {
         var t = C.services[tid];
         h += '<button type="button" class="tier' + (t.best ? ' on' : '') + '" role="radio" aria-checked="' + (!!t.best) + '" data-tier="' + tid + '">' + (t.best ? '<span class="best">Перед авансом</span>' : '') +
-          '<b>' + t.tierName + '</b><span class="tp">' + t.priceText + '</span><small>' + t.time + '</small></button>';
+          '<b>' + t.tierName + '</b><span class="tp">' + t.priceText + '</span><small>' + (t.soon ? 'Скоро' : t.time) + '</small></button>';
       });
       h += '</div><ul class="tier-inc">' + C.services['obj-deep'].inc.map(li).join('') + '</ul>';
       return h + '<button class="btn b-amber b-sm" type="button" data-form="svc" data-svc="obj-deep">Оформить проверку' + ARR + '</button></div>';
@@ -2607,12 +2609,22 @@ window.MAYAK = {
       row.classList.toggle('open', o); hd.setAttribute('aria-expanded', o);
     });
   });
+  /* ---------- кнопки заказа на страницах: у услуги «скоро» (SOON-*) — выключенная «Скоро» ---------- */
+  $$('[data-form="svc"][data-svc]').forEach(function (b) {
+    var s = C.services[b.dataset.svc]; if (!s || !s.soon || b.closest('.row .in')) return;
+    b.removeAttribute('data-form'); b.disabled = true; b.setAttribute('aria-disabled', 'true'); b.classList.add('is-soon'); b.textContent = 'Скоро';
+  });
   document.addEventListener('click', function (e) {
     var t = e.target.closest('.tier'); if (!t) return;
     var box = t.closest('.in');
     $$('.tier', box).forEach(function (x) { var on = x === t; x.classList.toggle('on', on); x.setAttribute('aria-checked', on); });
     $('.tier-inc', box).innerHTML = C.services[t.dataset.tier].inc.map(li).join('');
-    $('[data-svc]', box).dataset.svc = t.dataset.tier;
+    var go = $('[data-svc]', box), soon = !!C.services[t.dataset.tier].soon;   // SOON-*: у тарифа «скоро» кнопка заказа выключена
+    go.dataset.svc = t.dataset.tier;
+    if (!go.dataset.lbl) go.dataset.lbl = go.innerHTML;
+    go.disabled = soon; go.classList.toggle('is-soon', soon);
+    if (soon) go.setAttribute('aria-disabled', 'true'); else go.removeAttribute('aria-disabled');
+    go.innerHTML = soon ? 'Скоро' : go.dataset.lbl;
   });
 
   /* ---------- частые вопросы на главной и страница вопросов: открыт один ответ ---------- */
