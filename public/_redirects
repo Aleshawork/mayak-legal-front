@@ -11,6 +11,8 @@
 /account /account/index.html 200
 /checkout /checkout/index.html 200
 /unsubscribe /unsubscribe/index.html 200
+/anketa /anketa/index.html 200
+/vybor /vybor/index.html 200
 /payment/result /payment/result/index.html 200
 /payment/success /payment/success/index.html 200
 /payment/fail /payment/fail/index.html 200
