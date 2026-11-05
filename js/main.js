@@ -2008,6 +2008,7 @@ document.addEventListener('click',function(e){
 var METRIKA_ID='113551939';  /* счётчик «Маяк» в metrika.yandex.ru; при согласии код в <head> страницы загружает его раньше */
 function loadMetrika(){
   if(!METRIKA_ID) return;
+  if(/^(anketa|vybor)$/.test((document.body&&document.body.getAttribute('data-page'))||'')) return;  /* 755 § 2: на страницах с ключом дела Метрики нет */
   document.querySelectorAll('input,textarea').forEach(function(el){ el.classList.add('ym-disable-keys'); });
   if(window.ym) return;  /* уже загружена кодом в <head> */
   window.dataLayer=window.dataLayer||[];
@@ -2113,12 +2114,12 @@ document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&document.b
 function flash(then){ if(then) then(); }
 function flashIn(){}
 /* ============ АНКЕТА ПРОВЕРКИ УЧАСТКА (/anketa/) и ВЫБОР ПРИ ЗАДЕРЖКЕ (/vybor/) — наряд 750-Ф ============ */
-/* Ссылки из писем: /anketa/?d=<ключ дела> и /vybor/?d=<ключ дела>[&v=wait|refund]. Ключ — 16–64 знака [0-9a-f].
+/* Ссылки из писем: /anketa/#d=<ключ дела> и /vybor/#d=<ключ дела>[&v=wait|refund]. Ключ — 16–64 знака [0-9a-f].
    Маршруты (проект раздела контракта на согласовании): POST /api/dd/anketa/open {дело} → {кадастровый_номер, анкета: ждём|принята};
    POST /api/dd/anketa {дело, анкета: {поле: ответ}} — поля 738-П (ИТОГИ_738-П.md); POST /api/dd/egrn-choice {дело, выбор: ждать|возврат}.
    «Не знаю / не решил / думаю» — null; вопрос без ответа — ключа нет. Вопросы ПУ-07 без поля в приёмной сняты с формы (слово владельца 06.11).
    Ответы — персональные данные (дата брака): уходят только на сервер заказа; черновик — в localStorage этого браузера, после отправки удаляется.
-   В Метрику — только цель anketa_submitted. ?mock=anketa и ?mock=vybor — только на localhost. Ссылка выбора сама ничего не выбирает:
+   Метрики на этих страницах нет (755 § 2). ?mock=anketa и ?mock=vybor — только на localhost. Ссылка выбора сама ничего не выбирает:
    выбор — кнопкой на странице (почтовые сканеры открывают ссылки сами; 738-П, вопрос 6). */
 var AQ_OB=['garage','bath','shed','second_house','pool','well'];
 var AQ_OB_TYPE={garage:'гараж',bath:'баня',shed:'хозблок',pool:'навес',well:'иное'};
@@ -2126,17 +2127,25 @@ var AQ_PLAN={yes:'да',no:'нет',maybe:'может быть'};
 var AQ_STAGE={owns:'владеет',buying:'покупает',choosing:'выбирает'};
 var AQ_HEAT={electric:'электрическое',gas:'газовое',solid:'твёрдотопливное',undecided:'не решил'};
 var AQ_BASIS={paid:'возмездное',inherit:'наследство',gift:'дар',privat:'приватизация',free_other:'иное безвозмездное'};
-function aqCaseKey(){
-  var sp=null; try{ sp=new URLSearchParams(location.search||''); }catch(x){}
-  var d=(sp&&sp.get('d'))||'';
-  return {d:/^[0-9a-f]{16,64}$/.test(d)?d:'', sp:sp};
+/* Ключ дела — во фрагменте (#d=…): фрагмент не уходит ни на сервер, ни в Referer. Страница читает его и сразу
+   убирает из адресной строки (755 § 2). Метрики на этих страницах нет вовсе (loadMetrika их пропускает). */
+/* Чтобы обновление вкладки не теряло ключ, он держится в sessionStorage этой вкладки и снимается после отправки. */
+function aqCaseKey(name){
+  var sp=null, hp=null, SK='mayak-dk-'+name;
+  try{ sp=new URLSearchParams(location.search||''); hp=new URLSearchParams(String(location.hash||'').replace(/^#/,'')); }catch(x){}
+  var d=(hp&&hp.get('d'))||'', v=(hp&&hp.get('v'))||'';
+  try{ if(location.hash||location.search) history.replaceState(null,'',location.pathname); }catch(x){}
+  if(/^[0-9a-f]{16,64}$/.test(d)){ try{ sessionStorage.setItem(SK,d); }catch(x){} }
+  else { d=''; try{ d=sessionStorage.getItem(SK)||''; }catch(x){} if(!/^[0-9a-f]{16,64}$/.test(d)) d=''; }
+  return {d:d, v:v, sp:sp};
 }
+function aqForgetKey(name){ try{ sessionStorage.removeItem('mayak-dk-'+name); }catch(x){} }
 function aqLocalMock(sp,name){ return !!(sp&&sp.get('mock')===name&&/^(localhost|127\.0\.0\.1)$/.test(location.hostname)); }
 function aqLinkBad(er){ return !!(er&&er.status===422&&/дело не найдено|номер дела не похож|только у заказа проверки участка|скоро будет доступна/.test(er.message||'')); }
 
 function initAnketa(){
   var root=document.getElementById('anketa'); if(!root) return;
-  var k=aqCaseKey(), mock=aqLocalMock(k.sp,'anketa'), dk=mock?'0123456789abcdef':k.d;
+  var k=aqCaseKey('anketa'), mock=aqLocalMock(k.sp,'anketa'), dk=mock?'0123456789abcdef':k.d;
   var st=function(s){ root.setAttribute('data-state',s); window.scrollTo(0,0); };
   if(!dk){ st('invalid'); return; }
   var opened=mock?Promise.resolve({'ок':true,'дело':dk,'кадастровый_номер':'00:00:0000000:000','анкета':'ждём'})
@@ -2321,7 +2330,7 @@ function aqSetup(dk,d,mock,st){
     return a;
   }
 
-  function done(){ try{ localStorage.removeItem(KEY); }catch(x){} st('done'); }
+  function done(){ try{ localStorage.removeItem(KEY); }catch(x){} aqForgetKey('anketa'); st('done'); }
   f.addEventListener('input',save); f.addEventListener('change',save);
   f.addEventListener('submit',function(e){
     e.preventDefault(); tried=true; serr.textContent='';
@@ -2329,7 +2338,7 @@ function aqSetup(dk,d,mock,st){
     sending=true; check(); btn.firstChild.nodeValue='Отправляем…';
     var body={'дело':dk,'анкета':answers()};
     var sent=mock?new Promise(function(ok){ setTimeout(function(){ ok({'ок':true}); },500); }):apiDD('/api/dd/anketa',body);
-    sent.then(function(){ goal('anketa_submitted'); done(); },function(er){
+    sent.then(function(){ done(); },function(er){
       sending=false; btn.firstChild.nodeValue='Отправить';
       if(er&&er.status===409&&/уже принята/.test(er.message||'')){ done(); return; }
       if(aqLinkBad(er)){ st('invalid'); return; }
@@ -2344,12 +2353,12 @@ function aqSetup(dk,d,mock,st){
 /* ---------- выбор при задержке сведений: «Подождать» / «Вернуть деньги» ---------- */
 function initVybor(){
   var root=document.getElementById('vybor'); if(!root) return;
-  var k=aqCaseKey(), mock=aqLocalMock(k.sp,'vybor'), dk=mock?'0123456789abcdef':k.d;
+  var k=aqCaseKey('vybor'), mock=aqLocalMock(k.sp,'vybor'), dk=mock?'0123456789abcdef':k.d;
   var st=function(s){ root.setAttribute('data-state',s); window.scrollTo(0,0); };
   if(!dk){ st('invalid'); return; }
   var f=document.getElementById('vbForm'), btn=document.getElementById('vbSubmit'), err=document.getElementById('vbErr'), sending=false;
   var cur=function(){ var e=f.querySelector('input[name="vb"]:checked'); return e?e.value:''; };
-  var pre=k.sp&&k.sp.get('v'); if(pre==='wait'||pre==='refund'){ var p=f.querySelector('input[name="vb"][value="'+pre+'"]'); if(p) p.checked=true; }
+  var pre=k.v; if(pre==='wait'||pre==='refund'){ var p=f.querySelector('input[name="vb"][value="'+pre+'"]'); if(p) p.checked=true; }
   var check=function(){ var ok=!!cur()&&!sending; btn.disabled=!ok; btn.classList.toggle('off',!ok); btn.setAttribute('aria-disabled',String(!ok)); };
   f.addEventListener('change',function(){ err.textContent=''; check(); });
   f.addEventListener('submit',function(e){
@@ -2363,7 +2372,7 @@ function initVybor(){
       document.getElementById('vbDoneP').textContent=v==='wait'
         ?'Мы продолжаем запрашивать сведения и пришлём отчёт в течение 1 календарного дня после того, как они придут.'
         :'Вернём полную стоимость заказа тем же способом, которым вы платили.';
-      st('done');
+      aqForgetKey('vybor'); st('done');
     },function(er){
       sending=false; btn.firstChild.nodeValue='Подтвердить выбор'; check();
       if(aqLinkBad(er)){ st('invalid'); return; }
