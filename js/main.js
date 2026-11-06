@@ -1796,16 +1796,20 @@ document.addEventListener('submit',function(e){
         lbtn.disabled=!!on; lbtn.classList.toggle('off',!!on);
         if(on) lbtn.textContent=label||'Отправляем…'; else lbtn.innerHTML=lprev;
       };
+      if(lbtn&&(lbtn.disabled||lbtn.getAttribute('aria-busy')==='true')) return;   /* одно нажатие */
       var lkey=pending.key, lsent;
       try{ lsent=leadService(f,lkey,lbusy); }
       catch(err){ alert(err.message); return; }
       lsent.then(function(d){
         order.lead_id=d.id; saveOrder();
         goal('order_'+lkey);
-        if(d.pay_url){ location.href=d.pay_url; return; }   /* ссылку не храним и не пишем никуда */
+        if(d.pay_url){   /* ссылку не храним и не пишем никуда */
+          if(lbtn){ payLock(lbtn,'Переходим к оплате…'); lbtn._payLbl=lprev; payUnlock(lbtn,PAY_LOCK_MS); }
+          location.href=d.pay_url; return;
+        }
         lbusy(false); closeModal(); go('success',true);
       }).catch(function(err){
-        lbusy(false);
+        setTimeout(function(){ lbusy(false); },PAY_RETRY_MS);   /* повтор — не раньше чем через 2 секунды */
         if(err&&err.status===501){ alert(LEAD_NO_PAY); return; }
         alert(((err&&err.message)||'Не удалось отправить заявку')+'\n\nЕсли ошибка повторяется, напишите на sales@mayak-legal.ru');
       });
@@ -1814,6 +1818,7 @@ document.addEventListener('submit',function(e){
 
     if(pending.kind==='svc' && DD_SKUS[pending.key]){
       var btn=f.querySelector('.submit');
+      if(btn&&btn.disabled) return;   /* одно нажатие: заказ уже отправляется */
       var prevHtml=btn?btn.innerHTML:'';
       var setBusy=function(on,label){
         if(!btn) return;
@@ -1946,6 +1951,26 @@ function drawPayReturn(id){
   var a=document.getElementById('payRetry');
   if(a&&order&&order.dd&&order.case_id) a.setAttribute('href','/checkout/');
 }
+/* ============ ОПЛАТА: ОДНО НАЖАТИЕ (06.11.2026) ============ */
+/* Кнопка, ведущая в Robokassa, после нажатия выключена: пока ждём ссылку и ещё PAY_LOCK_MS после перехода —
+   страница оплаты успевает загрузиться, а повторные нажатия не шлют лишних запросов. При ошибке сервера кнопка
+   включается через PAY_RETRY_MS, а не сразу. Вернулся назад со страницы оплаты (страница из кэша) — кнопка снова доступна. */
+var PAY_LOCK_MS=10000, PAY_RETRY_MS=2000;
+function payLock(btn,label){
+  if(!btn) return; clearTimeout(btn._payT);
+  if(btn.getAttribute('aria-busy')!=='true') btn._payLbl=btn.innerHTML;
+  btn.disabled=true; btn.setAttribute('aria-busy','true'); if(label) btn.textContent=label;
+}
+function payUnlock(btn,after){
+  if(!btn) return; clearTimeout(btn._payT);
+  btn._payT=setTimeout(function(){
+    btn.disabled=false; btn.removeAttribute('aria-busy');
+    if(btn._payLbl!==undefined){ btn.innerHTML=btn._payLbl; btn._payLbl=undefined; }
+  },after||0);
+}
+window.addEventListener('pageshow',function(e){
+  if(e.persisted) [].forEach.call(document.querySelectorAll('[aria-busy="true"]'),function(b){ payUnlock(b,0); });
+});
 document.addEventListener('click',function(e){
   var payBtn=e.target.closest('#coPay');
   if(!payBtn) return;
@@ -1953,10 +1978,10 @@ document.addEventListener('click',function(e){
   e.preventDefault();
   if(!order){ alert('Заказ не найден. Оформите заявку заново.'); return; }
   if(order.case_id&&order.dd){
-    var prev=payBtn.innerHTML;
-    payBtn.disabled=true; payBtn.textContent='Переходим к оплате…';
-    ddPay(order.case_id).then(function(url){ location.href=url; }).catch(function(err){
-      payBtn.disabled=false; payBtn.innerHTML=prev;
+    if(payBtn.disabled||payBtn.getAttribute('aria-busy')==='true') return;   /* одно нажатие */
+    payLock(payBtn,'Переходим к оплате…');
+    ddPay(order.case_id).then(function(url){ payUnlock(payBtn,PAY_LOCK_MS); location.href=url; }).catch(function(err){
+      payUnlock(payBtn,PAY_RETRY_MS);
       alert((err&&err.message)||'Не удалось перейти к оплате');
     });
     return;

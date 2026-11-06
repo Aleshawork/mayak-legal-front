@@ -2784,3 +2784,6 @@ form.ad-run .form-done .adc-h{margin:0;font-size:26px;line-height:1.2;color:var(
 /* Риелторам: строка пакета «скоро» приглушена */
 .tr.is-soon>span:not(.nm){opacity:.45}
 .soon-tag{font-style:normal;font-size:.78em;font-weight:700;color:var(--soft);background:var(--bg2);padding:2px 8px;border-radius:999px;margin-left:6px;white-space:nowrap}
+
+/* ===== ОПЛАТА: кнопка после нажатия (06.11.2026) ===== */
+.btn[aria-busy="true"],.btn:disabled[aria-busy="true"]{opacity:.65;cursor:progress;pointer-events:none}
