@@ -909,20 +909,16 @@ function ddCheckFiles(files){
    пуст (вид flat). Ответ несёт `типы_по_егрн` — типы заказа, совместимые с видом по ЕГРН;
    выбранный тип сверяется с ним на месте, СМЕНА ТИПА ПОИСК НЕ ПОВТОРЯЕТ (поиск платный).
    Несовпадение — блок у поля типа и кнопки «Выбрать: {тип}». Вид неизвестен (null) — блока нет.
+   778 § 2 / 780: ВИД КАЖДОГО ТИПА ЗАКАЗА — ИЗ ПОЛЯ `вид_типов` ОТВЕТА ПРИЁМНОЙ ({тип: flat|land|any}),
+   своей копии таблицы у сайта нет. Блок — только у типов вида flat или land, чей вид не равен виду
+   по ЕГРН; типы any не блокируются никогда; `типы_по_егрн` = null — блока нет. В ответе нет
+   `вид_типов` (или приёмная отвергла поиск без типа, 4xx) — форма работает как без поиска:
+   сообщений, блока и печати нет, и до перезагрузки страницы поиск больше не запускается.
    «Не найдено» закрывает отправку; сбой, предел и прочее — нет: проверим после оплаты.
    Печать (версия 2: номер + вид по ЕГРН) уходит в заказ, только если номер в заказе — тот,
    что нашли, и тип не расходится с ЕГРН. */
-var EG={key:null,busy:null,st:null,msg:'',seal:null,kn:null,types:null,vid:'',code:null,mis:false,autoKad:null};
-/* Какие типы заказа сверяются с видом по ЕГРН — по таблице ВИД_ПОИСКА приёмной (решение 599,
-   § 3, п. 1): flat и land. Типы вида any (дом, нежилое, машино-место, незавершёнка) с видом не
-   сверяются и в кнопки не идут; источник правды о совместимости — `типы_по_егрн` сервера. */
-var EG_VID={'квартира_вторичка':'flat','комната':'flat','апартаменты':'flat','доля':'flat',
-  'участок_ИЖС':'land','участок_СНТ':'land','участок_ЛПХ':'land','участок_сельхоз':'land',
-  'участок_коммерческий':'land','участок_промышленный':'land'};
+var EG={key:null,busy:null,st:null,msg:'',seal:null,kn:null,types:null,vid:'',code:null,mis:false,autoKad:null,vt:null,off:false};
 var EG_NOSEARCH=['новостройка_ДДУ','переуступка','не_знаю'];   /* номера в ЕГРН нет или искать нечем */
-/* 776, § 3: здание (вид building) совместимо только с типами вида any — квартирные и земельные
-   типы при здании закрыты; кнопки при здании — «Дом с участком» и нежилое (коммерческая). */
-var EG_BUILDING_PICKS=['дом_с_участком','коммерческая'];
 var EG_TXT={
   wait:'Проверяем объект в ЕГРН…',
   found:'Нашли в ЕГРН: кадастровый номер {кн}{адрес}{вид}.',
@@ -962,32 +958,35 @@ function egReset(f){ EG.key=null; EG.busy=null; EG.st=null; EG.msg=''; EG.seal=n
 /* Сверка выбранного типа с найденным — без нового поиска (775, § 3) */
 function egCheck(f){
   var type=egVal(f,'dd_type');
-  /* Сверяются только квартирные и земельные типы (EG_VID). Вид по ЕГРН: здание — такие типы закрыты
-     всегда (776); flat/land — по `типы_по_егрн`, а без перечня — по совпадению вида; неизвестен — блока нет. */
-  var cmp=EG.st==='найден'&&type&&EG_VID[type];
-  EG.mis=!!(cmp&&(EG.code==='building'||(EG.types?EG.types.indexOf(type)<0:(EG.code&&EG_VID[type]!==EG.code))));
+  /* 778 § 2: блок — только у типа вида flat/land (по `вид_типов`), чей вид не равен виду по ЕГРН;
+     здание (building) не равно ни flat, ни land (776 § 3). Типы any — никогда; `типы_по_егрн` null — нет. */
+  var tv=type&&(EG.vt||{})[type];
+  EG.mis=!!(EG.st==='найден'&&EG.types!==null&&(tv==='flat'||tv==='land')&&tv!==EG.code);
   if(EG.mis){
-    var src=EG.code==='building'?EG_BUILDING_PICKS
-           :(EG.types||DD_OBJ.map(function(x){ return x[0]; }).filter(function(t){ return EG_VID[t]===EG.code; }));
-    var picks=src.filter(function(t){ return DD_OBJ.some(function(x){ return x[0]===t; }); });
+    var picks=(EG.types||[]).filter(function(t){ return DD_OBJ.some(function(x){ return x[0]===t; }); });
     egShowKind(f,esc(egFill(EG_TXT.kind,{'вид_егрн':String(EG.vid||'другой объект').toLowerCase(),'вид_формы':egTypeLabel(type)}))+
       (picks.length?'<span class="eg-types">'+picks.map(function(t){
         return '<button type="button" class="eg-tpick" data-type="'+esc(t)+'">'+esc(egFill(EG_TXT.pick,{'тип':egTypeLabel(t)}))+'</button>'; }).join('')+'</span>':''));
   } else egShowKind(f,'');
   if(EG.st==='адрес_не_найден'){
     if(!type){ EG.msg=''; egShow(f,'soft',esc(EG_TXT.addr_notype)); }
-    else if(EG_VID[type]==='flat'){ EG.msg=EG_TXT.no_addr; egShow(f,'bad',esc(EG_TXT.no_addr)); }
+    else if((EG.vt||{})[type]==='flat'){ EG.msg=EG_TXT.no_addr; egShow(f,'bad',esc(EG_TXT.no_addr)); }
     else { EG.msg=''; egShow(f,'soft',esc(EG_TXT.need_kn)); }
   }
 }
 /* Закрывает ли поиск отправку: «не найдено», адрес квартиры не найден, тип расходится с ЕГРН */
 function egBlocked(f){
   if(EG.mis) return {msg:egFill(EG_TXT.kind,{'вид_егрн':String(EG.vid||'другой объект').toLowerCase(),'вид_формы':egTypeLabel(egVal(f,'dd_type'))}),box:f.querySelector('.eg-kind')};
-  if(EG.st==='не_найден'||(EG.st==='адрес_не_найден'&&EG_VID[egVal(f,'dd_type')]==='flat')) return {msg:EG.msg||EG_TXT.no_addr,box:egBox(f)};
+  if(EG.st==='не_найден'||(EG.st==='адрес_не_найден'&&(EG.vt||{})[egVal(f,'dd_type')]==='flat')) return {msg:EG.msg||EG_TXT.no_addr,box:egBox(f)};
   return null;
 }
 function egFill(t,m){ return t.replace(/\{(\S+?)\}/g,function(_,k){ return m[k]!==undefined?m[k]:''; }); }
+/* Приёмная без `вид_типов` (не 775-П2) — форма как без поиска до перезагрузки страницы (780) */
+function egOff(f){ EG.off=true; egReset(f); }
 function egApply(f,d,by){
+  var vt=d&&d['вид_типов'];
+  if(!vt||typeof vt!=='object'||Array.isArray(vt)){ egOff(f); return; }
+  EG.vt=vt;
   var ish=d['исход'], why=d['причина']||'';
   if(ish==='найден'){
     EG.st='найден'; EG.seal=d['печать']||null; EG.kn=d['кадастровый_номер']||null;
@@ -1022,15 +1021,19 @@ function egApply(f,d,by){
 }
 function egRun(f,by){
   var type=egVal(f,'dd_type');
+  if(EG.off) return null;                                         /* приёмная без `вид_типов` — без поиска */
   if(type&&EG_NOSEARCH.indexOf(type)>=0) return null;          /* как «не_проверяется» приёмной: без вызова */
-  if(by==='addr'&&type&&EG_VID[type]!=='flat') return null;      /* по адресу находим только квартиры */
+  var tvt=type&&EG.vt&&EG.vt[type];
+  if(by==='addr'&&tvt&&tvt!=='flat') return null;                 /* по адресу находим только квартиры */
   var q=egVal(f,by); if(!q) return null;
   var key=by+'|'+q; if(EG.key===key) return EG.busy;
   EG.key=key; EG.st=null; EG.msg=''; EG.seal=null; EG.kn=null; EG.types=null; EG.vid=''; EG.code=null; EG.mis=false;
   egShow(f,'wait',esc(EG_TXT.wait)); egShowKind(f,'');
   var body={}; body[by==='kad'?'кадастровый_номер':'адрес']=q;   /* тип не шлём: 775, § 3 */
   var p=apiDD('/api/dd/lookup',body).then(function(d){ if(EG.key===key) egApply(f,d,by); },
-    function(){ if(EG.key===key){ EG.st='сбой'; egShow(f,'soft',esc(EG_TXT.fail)); } })
+    function(er){ if(EG.key!==key) return;
+      if(er&&er.status>=400&&er.status<500){ egOff(f); return; }   /* 4xx — приёмная не принимает поиск без типа */
+      EG.st='сбой'; egShow(f,'soft',esc(EG_TXT.fail)); })
   .then(function(){ if(EG.key===key) EG.busy=null; refresh(f); });
   EG.busy=p; return p;
 }
