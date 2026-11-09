@@ -451,7 +451,18 @@ function openModal(el){
   el.classList.add('on'); el.setAttribute('aria-hidden','false');
   document.body.classList.add('mopen');
 }
+/* Окно заказа (#formModal) закрывается только крестиком: фон и Escape его не закрывают — иначе пропадают
+   заполненные поля (09.11.2026). Документ, открытый из формы, по закрытии возвращает к форме. */
+var docBack=null;
 function closeModal(){
+  var dm=document.getElementById('docModal');
+  if(docBack&&dm&&dm.classList.contains('on')){
+    var b=docBack; docBack=null;
+    dm.classList.remove('on'); dm.setAttribute('aria-hidden','true');
+    b.classList.add('on'); b.setAttribute('aria-hidden','false');
+    return;
+  }
+  docBack=null;
   document.body.classList.remove('mopen');
   document.querySelectorAll('.modal').forEach(function(m){ m.classList.remove('on'); m.setAttribute('aria-hidden','true'); });
   if(lastFocus&&lastFocus.focus) lastFocus.focus();
@@ -469,7 +480,10 @@ function openDoc(key){
   var d=DOCS[key], m=d&&docModalEl(); if(!d||!m) return;
   document.getElementById('dmT').textContent=d.t;
   document.getElementById('dmB').innerHTML=d.b;
-  openModal(m); document.getElementById('dmB').scrollTop=0;
+  var fm=document.getElementById('formModal'), keep=lastFocus;
+  docBack=(fm&&fm.classList.contains('on'))?fm:null;
+  openModal(m); if(docBack) lastFocus=keep;   /* фокус вернётся туда, откуда открывали форму */
+  document.getElementById('dmB').scrollTop=0;
 }
 var pending=null, packRef=null;
 
@@ -2131,9 +2145,14 @@ document.addEventListener('click',function(e){
   if(tr){ e.preventDefault(); openTiers(tr.dataset.tiers); return; }
   var f=e.target.closest('[data-form]');
   if(f){ e.preventDefault(); openForm(f.dataset.form,f.dataset.svc); return; }
-  if(e.target.closest('[data-close]')||e.target.classList.contains('modal')) closeModal();
+  if(e.target.closest('[data-close]')||(e.target.classList.contains('modal')&&e.target.id!=='formModal')) closeModal();
 });
-document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&document.body.classList.contains('mopen')) closeModal(); });
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape'||!document.body.classList.contains('mopen')) return;
+  var fm=document.getElementById('formModal');
+  if(fm&&fm.classList.contains('on')) return;   /* окно заказа — только крестиком */
+  closeModal();
+});
 
 function flash(then){ if(then) then(); }
 function flashIn(){}
