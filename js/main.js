@@ -902,12 +902,24 @@ function ddCheckFiles(files){
     if(!file.size) throw new Error('Файл «'+file.name+'» пустой');
   });
 }
-/* ============ ПОИСК ОБЪЕКТА В ЕГРН ПРЯМО В ФОРМЕ (решения 596, 599, 709) ============
+/* ============ ПОИСК ОБЪЕКТА В ЕГРН ПРЯМО В ФОРМЕ (решения 596, 599, 709, 775) ============
    Адрес → кадастровый номер и номер → адрес через POST /api/dd/lookup. Запрос — только по
    выходу из поля, не на каждую букву; одно и то же значение повторно не спрашивается.
+   775: ТИП ОБЪЕКТА В ПОИСК НЕ ИДЁТ. Номер ищется сразу (вид any), адрес — сразу, если номер
+   пуст (вид flat). Ответ несёт `типы_по_егрн` — типы заказа, совместимые с видом по ЕГРН;
+   выбранный тип сверяется с ним на месте, СМЕНА ТИПА ПОИСК НЕ ПОВТОРЯЕТ (поиск платный).
+   Несовпадение — блок у поля типа и кнопки «Выбрать: {тип}». Вид неизвестен (null) — блока нет.
    «Не найдено» закрывает отправку; сбой, предел и прочее — нет: проверим после оплаты.
-   Печать проверки уходит в заказ, только если номер в заказе — тот самый, что нашли. */
-var EG={key:null,busy:null,st:null,msg:'',seal:null,kn:null,type:null,autoKad:null};
+   Печать (версия 2: номер + вид по ЕГРН) уходит в заказ, только если номер в заказе — тот,
+   что нашли, и тип не расходится с ЕГРН. */
+var EG={key:null,busy:null,st:null,msg:'',seal:null,kn:null,types:null,vid:'',mis:false,autoKad:null};
+/* Какие типы заказа сверяются с видом по ЕГРН — по таблице ВИД_ПОИСКА приёмной (решение 599,
+   § 3, п. 1): flat и land. Типы вида any (дом, нежилое, машино-место, незавершёнка) с видом не
+   сверяются и в кнопки не идут; источник правды о совместимости — `типы_по_егрн` сервера. */
+var EG_VID={'квартира_вторичка':'flat','комната':'flat','апартаменты':'flat','доля':'flat',
+  'участок_ИЖС':'land','участок_СНТ':'land','участок_ЛПХ':'land','участок_сельхоз':'land',
+  'участок_коммерческий':'land','участок_промышленный':'land'};
+var EG_NOSEARCH=['новостройка_ДДУ','переуступка','не_знаю'];   /* номера в ЕГРН нет или искать нечем */
 var EG_TXT={
   wait:'Проверяем объект в ЕГРН…',
   found:'Нашли в ЕГРН: кадастровый номер {кн}{адрес}{вид}.',
@@ -920,29 +932,64 @@ var EG_TXT={
   city:'Укажите адрес полностью: город, улицу, дом и квартиру.',
   badkn:'Кадастровый номер записан с ошибкой. Пример: 77:01:0001001:1234.',
   fail:'Не удалось проверить объект сейчас. Оформите заказ — мы проверим его после оплаты.',
-  limit:'Лимит проверок в ЕГРН сейчас исчерпан. Заказ можно продолжить по адресу или кадастровому номеру — мы проверим объект после оплаты.'
+  limit:'Лимит проверок в ЕГРН сейчас исчерпан. Заказ можно продолжить по адресу или кадастровому номеру — мы проверим объект после оплаты.',
+  /* решение 775, § 4 — приняты владельцем дословно */
+  addr_notype:'По этому адресу квартира в ЕГРН не найдена. Если это дом, участок или нежилое помещение — укажите кадастровый номер.',   /* Т-П1 */
+  pick:'Выбрать: {тип}',                                                                                                             /* Т-П2 */
+  need_kn:'Для этого типа объекта нужен кадастровый номер. По адресу мы находим только квартиры, комнаты и апартаменты.'
 };
 function egVal(f,n){ return ((f.querySelector('[name="'+n+'"]')||{}).value||'').trim(); }
 function egTypeLabel(v){ for(var i=0;i<DD_OBJ.length;i++) if(DD_OBJ[i][0]===v) return DD_OBJ[i][1]; return v; }
 function egBox(f){
-  var b=f.querySelector('.eg-msg'); if(b) return b;
+  var b=f.querySelector('.eg-msg:not(.eg-kind)'); if(b) return b;
   var a=f.querySelector('[name="addr"]'), w=a&&a.closest('.field'); if(!w) return null;
   w.insertAdjacentHTML('afterend','<div class="eg-msg" aria-live="polite" hidden></div>');
-  return f.querySelector('.eg-msg');
+  return f.querySelector('.eg-msg:not(.eg-kind)');
 }
+function egKindBox(f){
+  var b=f.querySelector('.eg-kind'); if(b) return b;
+  var s=f.querySelector('[name="dd_type"]'), w=s&&s.closest('.field'); if(!w) return null;
+  w.insertAdjacentHTML('afterend','<div class="eg-msg eg-kind eg-bad" aria-live="polite" hidden></div>');
+  return f.querySelector('.eg-kind');
+}
+function egShowKind(f,html){ var b=html?egKindBox(f):f.querySelector('.eg-kind'); if(!b) return; b.innerHTML=html||''; b.hidden=!html; }
 function egShow(f,cls,html){ var b=egBox(f); if(!b) return; b.className='eg-msg'+(cls?' eg-'+cls:''); b.innerHTML=html||''; b.hidden=!html; }
-function egReset(f){ EG.key=null; EG.busy=null; EG.st=null; EG.msg=''; EG.seal=null; EG.kn=null; egShow(f,'',''); }
+function egReset(f){ EG.key=null; EG.busy=null; EG.st=null; EG.msg=''; EG.seal=null; EG.kn=null; EG.types=null; EG.vid=''; EG.mis=false;
+  egShow(f,'',''); egShowKind(f,''); }
+/* Сверка выбранного типа с найденным — без нового поиска (775, § 3) */
+function egCheck(f){
+  var type=egVal(f,'dd_type');
+  EG.mis=!!(EG.st==='найден'&&type&&EG_VID[type]&&EG.types&&EG.types.indexOf(type)<0);
+  if(EG.mis){
+    var picks=EG.types.filter(function(t){ return DD_OBJ.some(function(x){ return x[0]===t; }); });
+    egShowKind(f,esc(egFill(EG_TXT.kind,{'вид_егрн':String(EG.vid||'другой объект').toLowerCase(),'вид_формы':egTypeLabel(type)}))+
+      (picks.length?'<span class="eg-types">'+picks.map(function(t){
+        return '<button type="button" class="eg-tpick" data-type="'+esc(t)+'">'+esc(egFill(EG_TXT.pick,{'тип':egTypeLabel(t)}))+'</button>'; }).join('')+'</span>':''));
+  } else egShowKind(f,'');
+  if(EG.st==='адрес_не_найден'){
+    if(!type){ EG.msg=''; egShow(f,'soft',esc(EG_TXT.addr_notype)); }
+    else if(EG_VID[type]==='flat'){ EG.msg=EG_TXT.no_addr; egShow(f,'bad',esc(EG_TXT.no_addr)); }
+    else { EG.msg=''; egShow(f,'soft',esc(EG_TXT.need_kn)); }
+  }
+}
+/* Закрывает ли поиск отправку: «не найдено», адрес квартиры не найден, тип расходится с ЕГРН */
+function egBlocked(f){
+  if(EG.mis) return {msg:egFill(EG_TXT.kind,{'вид_егрн':String(EG.vid||'другой объект').toLowerCase(),'вид_формы':egTypeLabel(egVal(f,'dd_type'))}),box:f.querySelector('.eg-kind')};
+  if(EG.st==='не_найден'||(EG.st==='адрес_не_найден'&&EG_VID[egVal(f,'dd_type')]==='flat')) return {msg:EG.msg||EG_TXT.no_addr,box:egBox(f)};
+  return null;
+}
 function egFill(t,m){ return t.replace(/\{(\S+?)\}/g,function(_,k){ return m[k]!==undefined?m[k]:''; }); }
-function egApply(f,d,type,by){
+function egApply(f,d,by){
   var ish=d['исход'], why=d['причина']||'';
   if(ish==='найден'){
-    EG.st='найден'; EG.seal=d['печать']||null; EG.kn=d['кадастровый_номер']||null; EG.type=type;
+    EG.st='найден'; EG.seal=d['печать']||null; EG.kn=d['кадастровый_номер']||null;
+    EG.types=Array.isArray(d['типы_по_егрн'])?d['типы_по_егрн']:null; EG.vid=d['вид_егрн']||'';
     var kad=f.querySelector('[name="kad"]'), addr=f.querySelector('[name="addr"]');
     if(by==='addr'&&kad&&EG.kn&&(!kad.value.trim()||kad.value.trim()===EG.autoKad)){ kad.value=EG.kn; EG.autoKad=EG.kn; }
     if(by==='kad'&&addr&&d['адрес_егрн']&&!addr.value.trim()) addr.value=d['адрес_егрн'];
     egShow(f,'ok',esc(egFill(EG_TXT.found,{'кн':EG.kn||'',
       'адрес':d['адрес_егрн']?', '+d['адрес_егрн']:'', 'вид':d['вид_егрн']?', '+String(d['вид_егрн']).toLowerCase():''})));
-    return;
+    egCheck(f); return;
   }
   if(ish==='несколько'){
     EG.st='несколько';
@@ -953,8 +1000,9 @@ function egApply(f,d,type,by){
         '<b>'+esc(x['кадастровый_номер']||'')+'</b>'+(x['адрес']?' · '+esc(x['адрес']):'')+'</button>'; }).join('')+'</span>');
     return;
   }
+  if(ish==='не_найден'&&by==='addr'&&why==='нет_в_егрн'){ EG.st='адрес_не_найден'; egCheck(f); return; }   /* Т-П1 — по типу */
   if(ish==='не_найден'){
-    var t={'нет_в_егрн':by==='kad'?EG_TXT.no_kn:EG_TXT.no_addr,'снят_с_учёта':EG_TXT.removed,'нет_города':EG_TXT.city,
+    var type=egVal(f,'dd_type'), t={'нет_в_егрн':by==='kad'?EG_TXT.no_kn:EG_TXT.no_addr,'снят_с_учёта':EG_TXT.removed,'нет_города':EG_TXT.city,
            'номер_отвергнут':EG_TXT.badkn,
            'вид_не_тот':egFill(EG_TXT.kind,{'вид_егрн':String(d['вид_егрн']||'другой объект').toLowerCase(),'вид_формы':egTypeLabel(type)})}[why]
          ||(by==='kad'?EG_TXT.no_kn:EG_TXT.no_addr);
@@ -964,13 +1012,15 @@ function egApply(f,d,type,by){
   EG.st='сбой'; egShow(f,'soft',esc(why==='предел'?EG_TXT.limit:EG_TXT.fail));
 }
 function egRun(f,by){
-  var type=egVal(f,'dd_type'); if(!type) return null;
+  var type=egVal(f,'dd_type');
+  if(type&&EG_NOSEARCH.indexOf(type)>=0) return null;          /* как «не_проверяется» приёмной: без вызова */
+  if(by==='addr'&&type&&EG_VID[type]!=='flat') return null;      /* по адресу находим только квартиры */
   var q=egVal(f,by); if(!q) return null;
-  var key=type+'|'+by+'|'+q; if(EG.key===key) return EG.busy;
-  EG.key=key; EG.st=null; EG.msg=''; EG.seal=null; EG.kn=null;
-  egShow(f,'wait',esc(EG_TXT.wait));
-  var body={'тип_объекта':type}; body[by==='kad'?'кадастровый_номер':'адрес']=q;
-  var p=apiDD('/api/dd/lookup',body).then(function(d){ if(EG.key===key) egApply(f,d,type,by); },
+  var key=by+'|'+q; if(EG.key===key) return EG.busy;
+  EG.key=key; EG.st=null; EG.msg=''; EG.seal=null; EG.kn=null; EG.types=null; EG.vid=''; EG.mis=false;
+  egShow(f,'wait',esc(EG_TXT.wait)); egShowKind(f,'');
+  var body={}; body[by==='kad'?'кадастровый_номер':'адрес']=q;   /* тип не шлём: 775, § 3 */
+  var p=apiDD('/api/dd/lookup',body).then(function(d){ if(EG.key===key) egApply(f,d,by); },
     function(){ if(EG.key===key){ EG.st='сбой'; egShow(f,'soft',esc(EG_TXT.fail)); } })
   .then(function(){ if(EG.key===key) EG.busy=null; refresh(f); });
   EG.busy=p; return p;
@@ -988,8 +1038,14 @@ document.addEventListener('input',function(e){
 });
 document.addEventListener('change',function(e){
   var t=e.target, f=egForm(t); if(!f||t.name!=='dd_type') return;
-  egReset(f);
-  if(egVal(f,'kad')) egRun(f,'kad'); else if(egVal(f,'addr')) egRun(f,'addr');
+  if(EG.key){ egCheck(f); refresh(f); return; }                  /* уже искали — только сверка (775) */
+  if(egVal(f,'kad')) egRun(f,'kad'); else if(egVal(f,'addr')) egRun(f,'addr');   /* не искали (тип не искался) */
+});
+document.addEventListener('click',function(e){
+  var b=e.target.closest&&e.target.closest('.eg-tpick'); if(!b) return;
+  var f=egForm(b); if(!f) return;
+  var s=f.querySelector('[name="dd_type"]'); if(!s) return;
+  s.value=b.getAttribute('data-type'); s.dispatchEvent(new Event('change',{bubbles:true}));
 });
 document.addEventListener('click',function(e){
   var b=e.target.closest&&e.target.closest('.eg-pick'); if(!b) return;
@@ -1006,14 +1062,14 @@ function ddCreateCase(f,key,setBusy){
   ddCheckFiles(files);
   if(setBusy) setBusy(true,'Создаём заказ…');
   return Promise.resolve(EG.busy).then(function(){
-    if(EG.st==='не_найден'){ var er=new Error(EG.msg||EG_TXT.no_addr); er.eg=true; throw er; }
+    var bl=egBlocked(f); if(bl){ var er=new Error(bl.msg); er.eg=true; er.box=bl.box; throw er; }
     return ddLoadForm(types);
   }).then(function(fm){
     var obj={'тип_объекта':types};
     if(val('kad')) obj['кадастровый_номер']=val('kad');
     if(val('addr')) obj['адрес']=val('addr');
-    /* печать — только у того номера, что нашли, и того типа, по которому искали */
-    if(EG.st==='найден'&&EG.seal&&EG.kn&&obj['кадастровый_номер']===EG.kn&&types[0]===EG.type) obj['проверен_в_форме']=EG.seal;
+    /* печать (версия 2) — только у того номера, что нашли, и если тип не расходится с ЕГРН */
+    if(EG.st==='найден'&&EG.seal&&EG.kn&&obj['кадастровый_номер']===EG.kn&&!EG.mis) obj['проверен_в_форме']=EG.seal;
     var deal=ddChecked(f,'ddDeal'), sel=ddChecked(f,'ddSeller');
     if(deal!==undefined) obj['тип_сделки']=deal;
     if(sel!==undefined) obj['тип_продавца']=sel;
@@ -1856,7 +1912,7 @@ document.addEventListener('submit',function(e){
       }).catch(function(err){
         setBusy(false);
         /* «Не найдено в ЕГРН» — не окном браузера, а сообщением у поля (решение 716) */
-        if(err&&err.eg){ var m=f.querySelector('.eg-msg');
+        if(err&&err.eg){ var m=err.box||f.querySelector('.eg-msg');
           if(m){ m.hidden=false; m.scrollIntoView({block:'center',behavior:REDUCE?'auto':'smooth'});
             m.classList.remove('eg-flash'); void m.offsetWidth; m.classList.add('eg-flash'); }
           return; }
