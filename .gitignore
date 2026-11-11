@@ -5,3 +5,4 @@ dist/
 *.log
 .buildcheck.tgz
 Claude outputs/
+.indexnow-urls.txt

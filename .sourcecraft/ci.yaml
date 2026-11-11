@@ -75,6 +75,14 @@ workflows:
                   console.log("========================");
                 '
 
+          # IndexNow, шаг 1 — ДО выкладки: какие страницы карты сайта изменились против
+          # живого сайта (список — в .indexnow-urls.txt, вне dist). Выкладку не роняет никогда.
+          - name: indexnow-prepare
+            image: node:22
+            script:
+              - |
+                if [ -f scripts/indexnow.mjs ]; then node scripts/indexnow.mjs prepare || true; else echo "IndexNow: скрипта нет в рабочей папке, пропуск"; fi
+
           - name: get-iam-token
             env:
               ID_TOKEN: ${{ tokens.yc.id_token }}
@@ -121,3 +129,11 @@ workflows:
                   yc storage s3 cp "$file" "s3://$BUCKET_NAME/$rel" --content-type "$ct"
                 done < <(find ./dist -type f -print0)
                 echo "Done. Check Object Storage website URL for bucket: $BUCKET_NAME"
+
+          # IndexNow, шаг 2 — ПОСЛЕ выкладки: сообщить Bing и Яндексу об изменённых страницах.
+          # Ответ каждой службы — строка в журнале; выкладку не роняет никогда.
+          - name: indexnow-send
+            image: node:22
+            script:
+              - |
+                if [ -f scripts/indexnow.mjs ]; then node scripts/indexnow.mjs send || true; else echo "IndexNow: скрипта нет в рабочей папке, пропуск"; fi
