@@ -604,7 +604,7 @@ function openForm(kind,key){
   var mkKn=''; try{ mkKn=sessionStorage.getItem('mayak-kn')||''; }catch(x){}
   if(mkKn){ var mkKf=document.getElementById('fmFields').querySelector('[name="kad"]');
             if(mkKf&&!mkKf.value) mkKf.value=mkKn; }
-  if(kind==='svc'&&LEAD_SKUS[key]) leadPrepare(document.getElementById('fmFields'));
+  if(kind==='svc'&&LEAD_SKUS[key]) leadPrepare(document.getElementById('fmFields'),key);
   if(needSurvey) svState={};
   document.getElementById('fmSurvey').innerHTML=needSurvey?surveyHtml():'';
   if(isDD) ddRefreshSurvey(f);
@@ -1736,8 +1736,12 @@ var LEAD_SELLER_SKUS={'sel-full':1,'deal':1};
 var LEAD_FORMS={formCl:'Запрос чек-листов',formCl2:'Запрос чек-листов (страница)',
                 formSamples:'Запрос примеров отчётов'};
 /* Файлы к заявке — второй шаг через /api/lead/upload-url (решение 518, § 2).
-   Включено нарядом 855-Ф: маршруты выложены. При false поле файла скрыто, и заявка уходит без файлов. */
+   Включено нарядом 855-Ф: маршруты выложены. При false поле файла скрыто, и заявка уходит без файлов.
+   Файлы открыты только у услуг из LEAD_FILE_SKUS (решение 857, § 1); у прочих форм
+   поле скрыто и подпись прежняя, как при LEAD_FILES=false. */
 var LEAD_FILES=true, LEAD_MAX_FILES=20;
+var LEAD_FILE_SKUS={'sel-full':1,'deal':1};
+function leadFilesOn(key){ return LEAD_FILES&&!!LEAD_FILE_SKUS[key]; }
 var LEAD_NO_FILES='Загрузка документов к заявке появится в ближайшие дни. Сейчас опишите задачу в форме.';
 var LEAD_NO_PAY='Онлайн-оплата этой услуги подключается в ближайшие дни. Заявка не отправлена: оформите её, когда оплата заработает, или напишите на sales@mayak-legal.ru — оформим вручную.';
 function apiLead(path,body){
@@ -1773,8 +1777,8 @@ function leadCommon(f,form){
   var c=leadConsents(f); Object.keys(c).forEach(function(k){ b[k]=c[k]; });
   return b;
 }
-function leadFiles(f){
-  if(!LEAD_FILES) return [];
+function leadFiles(f,key){
+  if(!leadFilesOn(key)) return [];
   var out=[];
   [].slice.call(f.querySelectorAll('input[type="file"]')).forEach(function(inp){
     if(inp.closest('[hidden]')||!inp.files) return;
@@ -1804,7 +1808,7 @@ function leadUpload(id,files,setBusy){
 /* Заявка на услугу из окна формы. order уже собран обработчиком отправки. */
 function leadService(f,key,setBusy){
   var val=function(n){ return ((f.querySelector('[name="'+n+'"]')||{}).value||'').trim(); };
-  var files=leadFiles(f);
+  var files=leadFiles(f,key);
   var b=leadCommon(f,'Заявка на услугу');
   b.svc=key; b.service=order.name; b.order=order.num; b.amount=order.ptxt;
   b.channel='на электронную почту'; b.delivery='mail';
@@ -1821,8 +1825,8 @@ function leadService(f,key,setBusy){
   });
 }
 /* Открытая форма заявки: поля без места в контракте прячем, а не теряем молча. */
-function leadPrepare(box){
-  if(!LEAD_FILES){
+function leadPrepare(box,key){
+  if(!leadFilesOn(key)){
     var hid=false;
     [].slice.call(box.querySelectorAll('input[type="file"]')).forEach(function(inp){
       var w=inp.closest('.field'); if(w){ w.hidden=true; hid=true; }
