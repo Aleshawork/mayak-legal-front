@@ -2197,11 +2197,13 @@ function aqSetup(dk,d,mock,st){
     var r=x.closest('.aq-b'); if(r) r.parentNode.removeChild(r); save();
   });
 
-  /* ---------- показ по ответам: data-show="имя:значение,значение"; «не решил» гасит число ---------- */
+  /* ---------- показ по ответам: data-show="имя:значение,значение;имя:значение" — все условия через «;»; «не решил» гасит число ---------- */
   function shows(){
     all('[data-show]').forEach(function(el){
-      var p=el.getAttribute('data-show').split(':'), vals=p[1].split(','), cur=cv(p[0]);
-      el.hidden=!cur.some(function(v){ return vals.indexOf(v)>=0; });
+      el.hidden=!el.getAttribute('data-show').split(';').every(function(c){
+        var p=c.split(':'), vals=p[1].split(','), cur=cv(p[0]);
+        return cur.some(function(v){ return vals.indexOf(v)>=0; });
+      });
     });
     [['height_undecided','height_m'],['footprint_undecided','footprint_m2'],['power_unknown','needs_power_kw'],
      ['marriage_date_unknown','marriage_date'],['acq_date_unknown','acq_date']].forEach(function(p){
@@ -2310,8 +2312,15 @@ function aqSetup(dk,d,mock,st){
     put('anketa.heating_type',R('heating_type',function(v){ return AQ_HEAT[v]; }));
     put('anketa.has_pool',R('has_pool',yn)); put('anketa.has_workshop',R('has_workshop',yn)); put('anketa.has_ev',R('has_ev',yn));
     var rs=cv('rights'), has=function(k){ return rs.indexOf(k)>=0; };
-    if(has('lease')){ put('docs.lease_allows_building',R('lease_build',function(v){ return v==='yes'?true:(v==='unknown'?null:false); }));
-                      put('docs.lease_terminated_after_notice',R('lease_prior',tri)); }
+    if(has('lease')){
+      /* ПУ-07 от 13.11, Б.1: «ничего не сказано» — своё поле, не false; «не знаю» — оба null */
+      var lb=rv('lease_build');
+      if(lb){ a['docs.lease_allows_building']=lb==='yes'?true:(lb==='no'?false:null);
+              if(lb==='silent') a['docs.lease_building_silent']=true; else if(lb==='unknown') a['docs.lease_building_silent']=null; }
+      put('docs.lease_terminated_after_notice',R('lease_prior',tri));
+      var ps=rv('purchase_stage');   /* переуступка — только при покупке; «выбираю» для правил = «покупаю» */
+      if(ps==='buying'||ps==='choosing'){ put('docs.lease_from_auction',R('lease_auction',tri));
+                                          put('docs.lease_transfer_needs_consent',R('lease_transfer_consent',tri)); } }
     if(has('free_use')) put('docs.ssuda_allows_building',R('ssuda_build',tri));
     if(has('pledge')){ put('docs.zakladnaya_exists',R('zakl',tri));
       if(rv('zakl')==='yes') put('docs.zakladnaya_allows_building',R('zakl_build',tri));
