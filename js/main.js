@@ -604,7 +604,7 @@ function openForm(kind,key){
   var mkKn=''; try{ mkKn=sessionStorage.getItem('mayak-kn')||''; }catch(x){}
   if(mkKn){ var mkKf=document.getElementById('fmFields').querySelector('[name="kad"]');
             if(mkKf&&!mkKf.value) mkKf.value=mkKn; }
-  if(kind==='svc'&&LEAD_SKUS[key]) leadPrepare(document.getElementById('fmFields'));
+  if(kind==='svc'&&LEAD_SKUS[key]) leadPrepare(document.getElementById('fmFields'),key);
   if(needSurvey) svState={};
   document.getElementById('fmSurvey').innerHTML=needSurvey?surveyHtml():'';
   if(isDD) ddRefreshSurvey(f);
@@ -1728,11 +1728,20 @@ function utmGet(){
 var LEAD_SKUS={'sel-full':1,'deal':1,'dkp':1,'consult':1,'deal-all':1,'land':1,
                'builder':1,'podryad':1,'priemka':1,'build-all':1};
 var LEAD_FIELDS=['seller','link','kad','addr','desc','time','builder'];
+/* Продавец-организация (решения 581, 587-Ф): у sel-full и deal заявка несёт stype —
+   отмеченный вариант выбора «Кто продавец» — и inn, если заполнен. У прочих услуг
+   этих полей нет: сервер их отвергает. «Физическое лицо» выбрать нельзя (soon); если
+   всё же придёт физлицо, клиент увидит текст отказа сервера как есть. */
+var LEAD_SELLER_SKUS={'sel-full':1,'deal':1};
 var LEAD_FORMS={formCl:'Запрос чек-листов',formCl2:'Запрос чек-листов (страница)',
                 formSamples:'Запрос примеров отчётов'};
 /* Файлы к заявке — второй шаг через /api/lead/upload-url (решение 518, § 2).
-   Пока маршруты не выложены, поле файла скрыто, и заявка уходит без файлов. */
-var LEAD_FILES=false, LEAD_MAX_FILES=20;
+   Включено нарядом 855-Ф: маршруты выложены. При false поле файла скрыто, и заявка уходит без файлов.
+   Файлы открыты только у услуг из LEAD_FILE_SKUS (решение 857, § 1); у прочих форм
+   поле скрыто и подпись прежняя, как при LEAD_FILES=false. */
+var LEAD_FILES=true, LEAD_MAX_FILES=20;
+var LEAD_FILE_SKUS={'sel-full':1,'deal':1};
+function leadFilesOn(key){ return LEAD_FILES&&!!LEAD_FILE_SKUS[key]; }
 var LEAD_NO_FILES='Загрузка документов к заявке появится в ближайшие дни. Сейчас опишите задачу в форме.';
 var LEAD_NO_PAY='Онлайн-оплата этой услуги подключается в ближайшие дни. Заявка не отправлена: оформите её, когда оплата заработает, или напишите на sales@mayak-legal.ru — оформим вручную.';
 function apiLead(path,body){
@@ -1768,8 +1777,8 @@ function leadCommon(f,form){
   var c=leadConsents(f); Object.keys(c).forEach(function(k){ b[k]=c[k]; });
   return b;
 }
-function leadFiles(f){
-  if(!LEAD_FILES) return [];
+function leadFiles(f,key){
+  if(!leadFilesOn(key)) return [];
   var out=[];
   [].slice.call(f.querySelectorAll('input[type="file"]')).forEach(function(inp){
     if(inp.closest('[hidden]')||!inp.files) return;
@@ -1799,11 +1808,15 @@ function leadUpload(id,files,setBusy){
 /* Заявка на услугу из окна формы. order уже собран обработчиком отправки. */
 function leadService(f,key,setBusy){
   var val=function(n){ return ((f.querySelector('[name="'+n+'"]')||{}).value||'').trim(); };
-  var files=leadFiles(f);
+  var files=leadFiles(f,key);
   var b=leadCommon(f,'Заявка на услугу');
   b.svc=key; b.service=order.name; b.order=order.num; b.amount=order.ptxt;
   b.channel='на электронную почту'; b.delivery='mail';
   LEAD_FIELDS.forEach(function(n){ if(val(n)) b[n]=val(n); });
+  if(LEAD_SELLER_SKUS[key]){
+    var st=f.querySelector('input[name="stype"]:checked'); if(st) b.stype=st.value;
+    if(val('inn')) b.inn=val('inn');
+  }
   if(Object.keys(svState).length) b.anketa=svState;
   if(setBusy) setBusy(true,'Отправляем заявку…');
   return apiLead('/api/lead',b).then(function(d){
@@ -1812,8 +1825,8 @@ function leadService(f,key,setBusy){
   });
 }
 /* Открытая форма заявки: поля без места в контракте прячем, а не теряем молча. */
-function leadPrepare(box){
-  if(!LEAD_FILES){
+function leadPrepare(box,key){
+  if(!leadFilesOn(key)){
     var hid=false;
     [].slice.call(box.querySelectorAll('input[type="file"]')).forEach(function(inp){
       var w=inp.closest('.field'); if(w){ w.hidden=true; hid=true; }
@@ -2330,7 +2343,6 @@ window.MAYAK = {
       fields: ['addr', 'mail']
     },
     'sel-full': {
-      soon: true,   // SOON-SEL-FULL (05.11.2026, решение 742 § 2): форма не шлёт stype, заявки получают ошибку; снять — удалить строку и вернуть кнопки на страницах
       group: 're', name: 'Проверка продавца', price: 1990, priceText: '1 990 ₽', time: 'до 1 календарного дня',
       short: 'Застройщик или другая организация. Физическое лицо — скоро',
       inc: ['Продавец — застройщик или другая организация (юридическое лицо)',
@@ -2344,7 +2356,6 @@ window.MAYAK = {
       fields: ['seller', 'mail']
     },
     deal: {
-      soon: true,   // SOON-DEAL (05.11.2026, решение 742 § 2): форма не шлёт stype, заявки получают ошибку; снять — удалить строку и вернуть кнопки на страницах
       group: 're', name: 'Проверка объекта и продавца', price: 4450, priceText: '4 450 ₽', time: 'до 2 календарных дней', save: 'выгоднее на 530 ₽',
       short: 'Расширенная проверка объекта и проверка продавца-организации в одном отчёте',
       inc: ['Расширенная проверка объекта целиком', 'Проверка продавца — застройщика или другой организации',
