@@ -2225,6 +2225,10 @@ function aqSetup(dk,d,mock,st){
     if(AQ_OB.some(function(k){ return !rv('ob_'+k); })) m.push(['outbuildings','Что ещё на участке — ответ по каждой постройке']);
     var sb=['off_front','off_left','off_right','off_rear'].every(function(n){ var v=nv(n); return v!==null&&v<=1000; });
     if(!sb&&!on('offsets_undecided')) m.push(['offsets','Где на участке стоит дом — четыре расстояния или «Пока не решил»']);
+    /* слово владельца 14.11: «есть» без единой строки не отправляется — иначе buildings не уходит и приёмная читает «не ответил» (решение 807) */
+    var exs=rv('existing');
+    if((exs==='yes'||exs==='remains')&&!all('.aq-b').some(function(r){ return tv('b'+r.getAttribute('data-row')+'_kind'); }))
+      m.push(['buildings','Строения на участке — хотя бы одна строка, или ответ «нет»']);
     NUM.forEach(function(x){ if(tv(x[0])&&!(nv(x[0])!==null&&nv(x[0])<=x[2])) m.push([x[0],x[1]+' — проверьте число']); });
     all('.aq-b').forEach(function(r){ var i=r.getAttribute('data-row'); if(tv('b'+i+'_area')&&!(nv('b'+i+'_area')!==null&&nv('b'+i+'_area')<=100000)) m.push(['b'+i+'_area','Площадь строения — проверьте число']); });
     if(rv('married')==='yes'&&tv('marriage_date')&&!okDate(tv('marriage_date'))) m.push(['marriage_date','Дата брака — не позже сегодняшней']);
