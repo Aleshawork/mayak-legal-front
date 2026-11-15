@@ -2240,9 +2240,9 @@ function flash(then){ if(then) then(); }
 function flashIn(){}
 /* ============ АНКЕТА ПРОВЕРКИ УЧАСТКА (/anketa/) и ВЫБОР ПРИ ЗАДЕРЖКЕ (/vybor/) — наряд 750-Ф ============ */
 /* Ссылки из писем: /anketa/#d=<ключ дела> и /vybor/#d=<ключ дела>[&v=wait|refund]. Ключ — 16–64 знака [0-9a-f].
-   Маршруты (проект раздела контракта на согласовании): POST /api/dd/anketa/open {дело} → {кадастровый_номер, анкета: ждём|принята};
-   POST /api/dd/anketa {дело, анкета: {поле: ответ}} — поля 738-П (ИТОГИ_738-П.md); POST /api/dd/egrn-choice {дело, выбор: ждать|возврат}.
-   «Не знаю / не решил / думаю» — null; вопрос без ответа — ключа нет. Вопросы ПУ-07 без поля в приёмной сняты с формы (слово владельца 06.11).
+   Маршруты — контракт участка (spec/API_участка.md в mayak-dd): POST /api/dd/anketa/open {дело} → {ждёт_анкету, кадастровый_номер, выбор_открыт};
+   POST /api/dd/anketa {дело, анкета: {поле: ответ}} — имена полей Б.1 ПУ-07, значения — таблица контракта; POST /api/dd/egrn-choice {дело, выбор: ждать|возврат}.
+   «Не знаю / не решил / думаю» — null; вопрос без ответа — ключа нет. Вопросы — ПУ-07 от 13.11 (наряд 817-Ф).
    Ответы — персональные данные (дата брака): уходят только на сервер заказа; черновик — в localStorage этого браузера, после отправки удаляется.
    Метрики на этих страницах нет (755 § 2). ?mock=anketa и ?mock=vybor — только на localhost. Ссылка выбора сама ничего не выбирает:
    выбор — кнопкой на странице (почтовые сканеры открывают ссылки сами; 738-П, вопрос 6). */
@@ -2252,6 +2252,10 @@ var AQ_PLAN={yes:'да',no:'нет',maybe:'может быть'};
 var AQ_STAGE={owns:'владеет',buying:'покупает',choosing:'выбирает'};
 var AQ_HEAT={electric:'электрическое',gas:'газовое',solid:'твёрдотопливное',undecided:'не решил'};
 var AQ_BASIS={paid:'возмездное',inherit:'наследство',gift:'дар',privat:'приватизация',free_other:'иное безвозмездное'};
+/* Наряд 817-Ф: значения — по таблице контракта участка (spec/API_участка.md). */
+var AQ_CAD=/^\d+(:\d+){3}$/;   /* кадастровый номер строения — цифры через двоеточие (контракт) */
+var AQ_SPLIT={razdel:'раздел',vydel:'выдел',pereraspr:'перераспределение',obyed:'объединение'};
+var AQ_HOUSE={residential:'жилой дом',garden:'садовый дом',unknown:'не решил'};   /* «не знаю» ПУ-07 → «не решил» перечня */
 /* Ключ дела — во фрагменте (#d=…): фрагмент не уходит ни на сервер, ни в Referer. Страница читает его и сразу
    убирает из адресной строки (755 § 2). Метрики на этих страницах нет вовсе (loadMetrika их пропускает). */
 /* Чтобы обновление вкладки не теряло ключ, он держится в sessionStorage этой вкладки и снимается после отправки. */
@@ -2273,14 +2277,18 @@ function initAnketa(){
   var k=aqCaseKey('anketa'), mock=aqLocalMock(k.sp,'anketa'), dk=mock?'0123456789abcdef':k.d;
   var st=function(s){ root.setAttribute('data-state',s); window.scrollTo(0,0); };
   if(!dk){ st('invalid'); return; }
-  var opened=mock?Promise.resolve({'ок':true,'дело':dk,'кадастровый_номер':'00:00:0000000:000','анкета':'ждём'})
+  /* Контракт участка, § 2: 200 — ровно {ждёт_анкету, кадастровый_номер, выбор_открыт}; false — анкета уже
+     принята или дело её больше не ждёт → экран «Анкета получена». 404 «ссылка недействительна» — один ответ
+     на все случаи (нет дела, не участок, участок выключен). */
+  var opened=mock?Promise.resolve({'ждёт_анкету':true,'кадастровый_номер':'00:00:0000000:000','выбор_открыт':false})
                  :apiDD('/api/dd/anketa/open',{'дело':dk});
   opened.then(function(d){
-    if(d&&d['анкета']==='принята'){ st('done'); return; }
-    aqSetup(dk,d||{},mock,st);
+    if(!d||typeof d['ждёт_анкету']!=='boolean'){ st('error'); return; }
+    if(!d['ждёт_анкету']){ st('done'); return; }
+    aqSetup(dk,d,mock,st);
     root.setAttribute('data-state','form');
   },function(er){
-    st(aqLinkBad(er)||(er&&er.status===422)?'invalid':'error');
+    st(er&&er.status===404?'invalid':'error');
   });
 }
 function aqSetup(dk,d,mock,st){
@@ -2298,6 +2306,18 @@ function aqSetup(dk,d,mock,st){
   var yn=function(v){ return v==='yes'; };
   var today=function(){ var t=new Date(); return t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2); };
   var okDate=function(s){ return /^\d{4}-\d{2}-\d{2}$/.test(s)&&s>='1900-01-01'&&s<=today(); };
+  var yearNow=new Date().getFullYear();
+  var okYear=function(s){ return /^\d{4}$/.test(s)&&+s>=1900&&+s<=yearNow; };
+  /* «дата или год»: ДД.ММ.ГГГГ, ГГГГ-ММ-ДД или ГГГГ → строка-дата или год числом; иначе undefined */
+  var dateOrYear=function(s){
+    if(okYear(s)) return +s;
+    var m=s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/), d=m?m[3]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2):s;
+    if(!okDate(d)) return undefined;
+    var t=new Date(d+'T00:00:00'); return (t.getFullYear()===+d.slice(0,4)&&t.getMonth()+1===+d.slice(5,7)&&t.getDate()===+d.slice(8,10))?d:undefined;
+  };
+  var okMonth=function(s){ return /^\d{4}-(0[1-9]|1[0-2])$/.test(s)&&+s.slice(0,4)>=yearNow-1&&+s.slice(0,4)<=yearNow+50; };
+  var intIn=function(n,lo,hi){ var v=nv(n); return v!==null&&Math.floor(v)===v&&v>=lo&&v<=hi; };
+  var noneAlone=function(n){ var v=cv(n); return !(v.indexOf('none')>=0&&v.length>1); };
 
   /* ---------- строки списка строений ---------- */
   function addRow(){
@@ -2312,6 +2332,7 @@ function aqSetup(dk,d,mock,st){
       '</div>'+
       '<div class="field"><label>Капитальное (на фундаменте)?</label>'+ch('capital',[['yes','да'],['no','нет']])+'</div>'+
       '<div class="field"><label>Зарегистрировано?</label>'+ch('registered',[['yes','да'],['no','нет'],['unknown','не знаю']])+'</div>'+
+      '<div class="field"><label>Кадастровый номер строения, если знаете</label><input type="text" name="b'+i+'_cad" maxlength="40" placeholder="00:00:0000000:000"></div>'+
       '<div class="field"><label>Оставляете или сносите?</label>'+ch('fate',[['keep','оставляю'],['demolish','сношу']])+'</div>';
     box.appendChild(w);
     return w;
@@ -2355,9 +2376,19 @@ function aqSetup(dk,d,mock,st){
     if((exs==='yes'||exs==='remains')&&!all('.aq-b').some(function(r){ return tv('b'+r.getAttribute('data-row')+'_kind'); }))
       m.push(['buildings','Строения на участке — хотя бы одна строка, или ответ «нет»']);
     NUM.forEach(function(x){ if(tv(x[0])&&!(nv(x[0])!==null&&nv(x[0])<=x[2])) m.push([x[0],x[1]+' — проверьте число']); });
+    all('.aq-b').forEach(function(r){ var i=r.getAttribute('data-row'); if(tv('b'+i+'_cad')&&!AQ_CAD.test(tv('b'+i+'_cad'))) m.push(['b'+i+'_cad','Кадастровый номер строения — цифры через двоеточие']); });
     all('.aq-b').forEach(function(r){ var i=r.getAttribute('data-row'); if(tv('b'+i+'_area')&&!(nv('b'+i+'_area')!==null&&nv('b'+i+'_area')<=100000)) m.push(['b'+i+'_area','Площадь строения — проверьте число']); });
     if(rv('married')==='yes'&&tv('marriage_date')&&!okDate(tv('marriage_date'))) m.push(['marriage_date','Дата брака — не позже сегодняшней']);
     if(tv('acq_date')&&!okDate(tv('acq_date'))) m.push(['acq_date','Когда приобретён участок — не позже сегодняшней']);
+    if(tv('construction_end')&&!okMonth(tv('construction_end'))) m.push(['construction_end','Когда закончить стройку — месяц и год, от прошлого года до 50 лет вперёд']);
+    if(!noneAlone('intent')) m.push(['intent','Разделить участок, дом или продать отдельно — «ничего из этого» без других вариантов']);
+    if(!noneAlone('levels')) m.push(['levels','Подвал, цокольный этаж, мансарда — «ничего из этого» без других вариантов']);
+    if(tv('cellar_slab_m')&&!(nv('cellar_slab_m')!==null&&nv('cellar_slab_m')<=10)) m.push(['cellar_slab_m','Перекрытие цокольного этажа — до 10 м']);
+    if((tv('kitchens')&&!intIn('kitchens',0,20))||(tv('entrances')&&!intIn('entrances',0,20))) m.push(['kitchens','Кухонь и входов — целые числа от 0 до 20']);
+    if(rv('survey')==='yes'&&tv('survey_year')&&!okYear(tv('survey_year'))) m.push(['survey_year','Год выноса границ — от 1900 до нынешнего']);
+    if(rv('geology')==='yes'&&tv('geology_year')&&!okYear(tv('geology_year'))) m.push(['geology_year','Год изысканий — от 1900 до нынешнего']);
+    if(rv('planned_record')==='yes'&&tv('planned_record_date')&&dateOrYear(tv('planned_record_date'))===undefined)
+      m.push(['planned_record_date','Когда пришёл ответ — дата ДД.ММ.ГГГГ или год, не позже сегодняшнего']);
     return m;
   }
   function check(){
@@ -2408,13 +2439,37 @@ function aqSetup(dk,d,mock,st){
     var a={}, put=function(k,v){ if(v!==undefined) a[k]=v; };
     var R=function(n,map){ var v=rv(n); return v?map(v):undefined; };
     put('anketa.purchase_stage',R('purchase_stage',function(v){ return AQ_STAGE[v]; }));
+    /* 1. Участок (ПУ-07 13.11, Б.1) */
+    if(okMonth(tv('construction_end'))) a['anketa.construction_end_estimate']=tv('construction_end');
+    put('anketa.application_vri_filed',R('vri_application',tri));
+    put('site.urvi_granted',R('urvi_granted',tri));
+    put('anketa.is_kfh_head',R('kfh_head',yn));
+    var it=cv('intent');
+    if(it.length&&noneAlone('intent')){ a['anketa.intent_divide_plot']=it.indexOf('divide_plot')>=0;
+      a['anketa.intent_divide_building']=it.indexOf('divide_building')>=0; a['anketa.intent_sell_land_separately']=it.indexOf('sell_separately')>=0; }
+    put('anketa.split_kind',R('split_kind',function(v){ return AQ_SPLIT[v]; }));
     a['anketa.storeys_declared']=nv('storeys');
     a['anketa.height_declared_m']=on('height_undecided')?null:nv('height_m');
     a['anketa.footprint_declared_m2']=on('footprint_undecided')?null:nv('footprint_m2');
     if(nv('total_area_m2')!==null) a['anketa.total_area_m2']=nv('total_area_m2');
+    /* 2. Дом */
+    put('anketa.house_kind',R('house_kind',function(v){ return AQ_HOUSE[v]; }));
+    var lv=cv('levels');
+    if(lv.length&&noneAlone('levels')){ a['anketa.has_basement']=lv.indexOf('basement')>=0;
+      a['anketa.has_cellar']=lv.indexOf('cellar')>=0; a['anketa.has_mansard']=lv.indexOf('mansard')>=0; }
+    if(lv.indexOf('cellar')>=0&&nv('cellar_slab_m')!==null&&nv('cellar_slab_m')<=10) a['anketa.cellar_slab_above_ground_m']=nv('cellar_slab_m');
+    put('anketa.detached',R('detached',yn));
+    if(intIn('kitchens',0,20)) a['anketa.kitchens']=nv('kitchens');
+    if(intIn('entrances',0,20)) a['anketa.separate_entrances']=nv('entrances');
+    put('anketa.nonresidential_premises',R('nonresidential',yn));
+    put('anketa.needs_registration',R('registration',tri));
     a['anketa.aux_buildings']=AQ_OB.filter(function(k){ return AQ_OB_TYPE[k]; }).map(function(k){
       return {type:AQ_OB_TYPE[k],planned:AQ_PLAN[rv('ob_'+k)]}; });
     put('anketa.second_house',R('ob_second_house',function(v){ return v==='maybe'?null:yn(v); }));
+    /* 3. «Раньше дома?» — true, если хотя бы одна постройка раньше дома (Б.1) */
+    var first=AQ_OB.map(function(k){ return rv('ob_'+k+'_first'); }).filter(Boolean);
+    if(first.length) a['anketa.aux_first']=first.indexOf('yes')>=0;
+    put('anketa.fence_and_cabin_only',R('fence_cabin',tri));
     a['anketa.offsets_planned_m']=on('offsets_undecided')?null:
       {front:nv('off_front'),side_left:nv('off_left'),side_right:nv('off_right'),rear:nv('off_rear')};
     if(nv('roof_overhang_m')!==null) a['anketa.roof_overhang_m']=nv('roof_overhang_m');
@@ -2427,12 +2482,24 @@ function aqSetup(dk,d,mock,st){
         if(rv('b'+i+'_capital')) b.capital=yn(rv('b'+i+'_capital'));
         if(rv('b'+i+'_registered')) b.registered=tri(rv('b'+i+'_registered'));
         if(rv('b'+i+'_fate')) b.to_remain=rv('b'+i+'_fate')==='keep';
+        if(AQ_CAD.test(tv('b'+i+'_cad'))) b.cad_number=tv('b'+i+'_cad');
         return b; }).filter(Boolean);
       if(bs.length) a.buildings=bs;
     }
     put('site.underground_structures',R('underground',tri));
+    /* 5. Что уже есть на участке */
+    put('site.old_foundation_in_footprint',R('old_foundation',tri));
+    put('survey.performed',R('survey',tri));
+    if(rv('survey')==='yes'&&okYear(tv('survey_year'))) a['survey.date']=+tv('survey_year');
     put('geo.survey_done',R('geology',yn));
+    if(rv('geology')==='yes'&&okYear(tv('geology_year'))) a['geo.survey_year']=+tv('geology_year');
     put('reestr.planned_record',R('planned_record',tri));
+    if(rv('planned_record')==='yes'){
+      var prd=tv('planned_record_date')?dateOrYear(tv('planned_record_date')):undefined;
+      if(prd!==undefined) a['reestr.planned_record_date']=prd;
+      /* ответ на уведомление — своего поля нет (контракт): запись в реестре → false, несоответствие → true, не знаю → null */
+      put('reestr.nesootvetstvie',R('planned_record_answer',function(v){ return v==='mismatch'?true:(v==='record'?false:null); }));
+    }
     var ds=rv('disputes');
     if(ds){ var dv=function(n){ return ds==='yes'?on(n):(ds==='no'?false:null); };
       a['disputes.snos_decision']=dv('dis_snos'); a['disputes.prescription']=dv('dis_prescription'); a['disputes.court_case']=dv('dis_court'); }
@@ -2454,17 +2521,21 @@ function aqSetup(dk,d,mock,st){
     if(has('pledge')){ put('docs.zakladnaya_exists',R('zakl',tri));
       if(rv('zakl')==='yes') put('docs.zakladnaya_allows_building',R('zakl_build',tri));
       put('docs.mortgage_requires_consent',R('mort_consent_req',tri)); put('docs.mortgage_holder_position',R('mort_consent',yn)); }
-    if(has('arrest')) put('docs.pristav_limits_use',R('pristav',tri));
+    if(has('arrest')){ put('docs.pristav_limits_use',R('pristav',tri)); put('fssp.active_proceedings',R('fssp_open',tri)); }
     if(has('co_owners')){ put('docs.co_owner_consents_written',R('co_consents',yn)); put('docs.house_ownership_agreement',R('co_house',yn));
                           put('docs.use_order_agreement',R('co_use',yn)); }
     if(has('not_registered')){ put('docs.pravoustanavlivayushchiy',R('nr_doc',yn)); put('anketa.inheritance_open_no_certificate',R('nr_inherit',yn)); }
     if(has('servitude')) put('docs.servitut_coords',R('serv_strip',yn));
+    put('anketa.married',R('married',yn));   /* «не состою» — false, а не отсутствие ключа (контракт, § 3) */
     if(rv('married')==='yes') a['anketa.marriage_date']=okDate(tv('marriage_date'))?tv('marriage_date'):null;
     put('anketa.acquisition_basis',R('acq_basis',function(v){ return v==='unknown'?null:AQ_BASIS[v]; }));
     if(on('acq_date_unknown')) a['anketa.plot_acquired_date']=null; else if(okDate(tv('acq_date'))) a['anketa.plot_acquired_date']=tv('acq_date');
     put('docs.brachny_dogovor',R('prenup',yn));
     put('anketa.uses_matkapital',R('matcap',yn));
     put('anketa.uses_mortgage',R('mortgage',function(v){ return v==='thinking'?null:yn(v); }));
+    put('anketa.uses_escrow',R('escrow',tri));
+    /* 6–7. Проект: индивидуальный → true, типовой → false, не решил → null */
+    put('anketa.individual_project',R('project',function(v){ return v==='individual'?true:(v==='typical'?false:null); }));
     return a;
   }
 
@@ -2478,11 +2549,21 @@ function aqSetup(dk,d,mock,st){
     var sent=mock?new Promise(function(ok){ setTimeout(function(){ ok({'ок':true}); },500); }):apiDD('/api/dd/anketa',body);
     sent.then(function(){ done(); },function(er){
       sending=false; btn.firstChild.nodeValue='Отправить';
-      if(er&&er.status===409&&/уже принята/.test(er.message||'')){ done(); return; }
+      var said=function(){
+        serr.textContent=(er&&(er.status===422||er.status===409)&&er.message)?(er.message.charAt(0).toUpperCase()+er.message.slice(1)+'. Если не получается — напишите на support@mayak-legal.ru.')
+          :'Не удалось отправить анкету. Ответы сохранены в этом браузере — попробуйте ещё раз или напишите на support@mayak-legal.ru.';
+        check(); };
+      /* Контракт, § 3: два разных 409 («уже принята» и «нет согласия») различаются не по тексту —
+         на любой 409 страница переспрашивает anketa/open: ждёт_анкету false — «Анкета получена», иначе текст ошибки. */
+      if(er&&er.status===409){
+        sending=true; check();
+        apiDD('/api/dd/anketa/open',{'дело':dk}).then(function(d){
+          sending=false; if(d&&d['ждёт_анкету']===false) done(); else said();
+        },function(){ sending=false; said(); });
+        return;
+      }
       if(aqLinkBad(er)){ st('invalid'); return; }
-      serr.textContent=(er&&(er.status===422||er.status===409)&&er.message)?(er.message.charAt(0).toUpperCase()+er.message.slice(1)+'. Если не получается — напишите на support@mayak-legal.ru.')
-        :'Не удалось отправить анкету. Ответы сохранены в этом браузере — попробуйте ещё раз или напишите на support@mayak-legal.ru.';
-      check();
+      said();
     });
   });
   restore(); shows(); check();
