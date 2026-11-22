@@ -2802,6 +2802,12 @@ form.ad-run .form-done .adc-h{margin:0;font-size:26px;line-height:1.2;color:var(
 .rev-text{margin:0;font-size:14.8px;line-height:1.65;color:var(--ink)}
 .rev-note{margin-top:26px;font-size:13.5px;color:var(--soft);max-width:640px}
 .rev-cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}
+.rev-avatar{width:38px;height:38px;border-radius:50%;background:var(--beam);color:#fff;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.rev-avatar svg{width:20px;height:20px;display:block}
+.rev-stars{color:var(--beam);font-size:15px;letter-spacing:2px;line-height:1}
+.rev-meta{margin-top:auto}
+.rev-date{color:var(--soft);font-size:13px}
+.x .sec-h h1{font-size:clamp(32px,4.4vw,60px);letter-spacing:-.04em}
 .art-table{width:100%;border-collapse:collapse;font-size:14px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px var(--hair)}
 .art-table th{background:var(--bg2);text-align:left;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:12px 14px}
 .art-table td{padding:11px 14px;border-top:1px solid var(--hair);color:var(--ink);vertical-align:top}
