@@ -2791,3 +2791,19 @@ form.ad-run .form-done .adc-h{margin:0;font-size:26px;line-height:1.2;color:var(
 
 /* ===== ОПЛАТА: кнопка после нажатия (06.11.2026) ===== */
 .btn[aria-busy="true"],.btn:disabled[aria-busy="true"]{opacity:.65;cursor:progress;pointer-events:none}
+
+/* ---------- отзывы ---------- */
+.rev-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px}
+.rev-card{background:var(--bg2);border-radius:16px;padding:22px 24px;box-shadow:0 0 0 1px var(--hair);display:flex;flex-direction:column;gap:12px}
+.rev-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.rev-name{font-weight:800;color:var(--deep);font-size:16.5px}
+.rev-city{color:var(--soft);font-size:13.5px}
+.rev-role{background:var(--beam);color:#fff;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:3px 10px}
+.rev-text{margin:0;font-size:14.8px;line-height:1.65;color:var(--ink)}
+.rev-note{margin-top:26px;font-size:13.5px;color:var(--soft);max-width:640px}
+.rev-cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}
+.art-table{width:100%;border-collapse:collapse;font-size:14px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px var(--hair)}
+.art-table th{background:var(--bg2);text-align:left;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:12px 14px}
+.art-table td{padding:11px 14px;border-top:1px solid var(--hair);color:var(--ink);vertical-align:top}
+.art-table td:first-child{font-weight:600}
+.art-table .yes{color:var(--deep);font-weight:700}
