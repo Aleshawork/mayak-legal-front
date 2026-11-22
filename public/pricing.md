@@ -41,7 +41,6 @@
 - Правовые вопросы: info@mayak-legal.ru
 - Оплата и чеки: accounting@mayak-legal.ru
 - Техническая поддержка: support@mayak-legal.ru
-- Телефон: +7 981 752-52-78
 - Telegram: канал @mayak_legal, бот @mayak_legal_bot помогает выбрать услугу; заказ оформляется на сайте
 
 Дата обновления: 27 октября 2026 года
