@@ -2010,6 +2010,18 @@ function loadMetrika(){
 }
 function goal(name){ try{ if(window.ym&&METRIKA_ID) window.ym(+METRIKA_ID,'reachGoal',name); }catch(x){} }
 
+/* ============ VK ADS PIXEL (только после согласия на аналитику) ============ */
+var VK_PIXEL_ID='3815100';  /* пиксель «Маяк» в ads.vk.ru; при согласии код в <head> страницы загружает его раньше */
+function loadVkPixel(){
+  if(!VK_PIXEL_ID) return;
+  if(document.getElementById('tmr-code')) return;  /* уже загружен кодом в <head> */
+  window._tmr=window._tmr||[];
+  window._tmr.push({id:VK_PIXEL_ID,type:'pageView',start:(new Date()).getTime()});
+  var ts=document.createElement('script'); ts.type='text/javascript'; ts.async=true; ts.id='tmr-code';
+  ts.src='https://top-fwz1.mail.ru/js/code.js';
+  var s=document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ts,s);
+}
+
 document.addEventListener('click',function(e){ var a=e.target.closest('a[href$=".pdf"]'); if(a) goal('pdf_download');
   var g=e.target.closest('[data-goal]'); if(g) goal(g.getAttribute('data-goal')); });
 
@@ -2019,8 +2031,8 @@ document.addEventListener('click',function(e){ var a=e.target.closest('a[href$="
   var KEY='mayak-cookie', saved=null;
   try{ saved=localStorage.getItem(KEY); }catch(x){}
   if(!saved) setTimeout(function(){ bar.hidden=false; },1200);
-  if(saved==='all') loadMetrika();
-  function store(v){ try{ localStorage.setItem(KEY,v); }catch(x){} bar.hidden=true; if(v==='all') loadMetrika(); }
+  if(saved==='all'){ loadMetrika(); loadVkPixel(); }
+  function store(v){ try{ localStorage.setItem(KEY,v); }catch(x){} bar.hidden=true; if(v==='all'){ loadMetrika(); loadVkPixel(); } }
   bar.addEventListener('click',function(e){
     var b=e.target.closest('[data-cookie]'); if(!b) return;
     var a=b.dataset.cookie;
