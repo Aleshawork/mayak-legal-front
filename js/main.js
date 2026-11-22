@@ -1897,6 +1897,7 @@ document.addEventListener('submit',function(e){
       lsent.then(function(d){
         order.lead_id=d.id; saveOrder();
         goal('order_'+lkey);
+        vkGoal('lead');
         if(d.pay_url){   /* ссылку не храним и не пишем никуда */
           if(lbtn){ payLock(lbtn,'Переходим к оплате…'); lbtn._payLbl=lprev; payUnlock(lbtn,PAY_LOCK_MS); }
           location.href=d.pay_url; return;
@@ -1931,6 +1932,7 @@ document.addEventListener('submit',function(e){
         saveOrder();
         setBusy(false);
         goal('order_paid_start');
+        vkGoal('lead');
         closeModal();
         go('checkout',true);
       }).catch(function(err){
@@ -1946,6 +1948,7 @@ document.addEventListener('submit',function(e){
     }
 
     goal('order_'+(pending.svc||pending.kind||'svc'));
+    vkGoal('lead');
     closeModal();
     if(pending.price>0) go('checkout',true);
     else { go('success',true); }
@@ -2137,6 +2140,7 @@ function loadMetrika(){
   window.ym(+METRIKA_ID,'init',{ssr:true,webvisor:true,clickmap:true,ecommerce:'dataLayer',referrer:document.referrer,url:location.href,accurateTrackBounce:true,trackLinks:true});
 }
 function goal(name){ try{ if(window.ym&&METRIKA_ID) window.ym(+METRIKA_ID,'reachGoal',name); }catch(x){} }
+function vkGoal(name){ try{ if(window._tmr&&VK_PIXEL_ID) window._tmr.push({id:VK_PIXEL_ID,type:'reachGoal',goal:name}); }catch(x){} }
 
 /* ============ VK ADS PIXEL (только после согласия на аналитику) ============ */
 var VK_PIXEL_ID='3815100';  /* пиксель «Маяк» в ads.vk.ru; при согласии код в <head> страницы загружает его раньше */
