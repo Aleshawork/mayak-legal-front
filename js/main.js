@@ -1649,6 +1649,7 @@ function adRun(f,url,email,force,mkt,mock){
     var id=res.data.listing_id;
     if(!id){ adcEnd(run,{mode:'fail',message:AD_TXT.net}); return; }
     run.id=id;
+    vkGoal('lead');
     /* Готовый свежий разбор приходит сразу: только у него есть возраст. */
     if(res.data.reused&&typeof res.data.report_age_sec==='number') run.reuseAge=res.data.report_age_sec;
     adcPoll(run);
@@ -1960,7 +1961,7 @@ document.addEventListener('submit',function(e){
     if(sb){ sb.disabled=true; sb.textContent='Отправляем…'; }
     apiLead('/api/lead',leadCommon(f,LEAD_FORMS[id])).then(function(){
       if(sb){ sb.disabled=false; sb.innerHTML=sprev; }
-      f.classList.add('sent'); goal('form_'+id);
+      f.classList.add('sent'); goal('form_'+id); vkGoal('lead');
     }).catch(function(err){
       if(sb){ sb.disabled=false; sb.innerHTML=sprev; }
       alert(((err&&err.message)||'Не удалось отправить')+'\n\nЕсли ошибка повторяется, напишите на sales@mayak-legal.ru');
@@ -2140,7 +2141,7 @@ function loadMetrika(){
   window.ym(+METRIKA_ID,'init',{ssr:true,webvisor:true,clickmap:true,ecommerce:'dataLayer',referrer:document.referrer,url:location.href,accurateTrackBounce:true,trackLinks:true});
 }
 function goal(name){ try{ if(window.ym&&METRIKA_ID) window.ym(+METRIKA_ID,'reachGoal',name); }catch(x){} }
-function vkGoal(name){ try{ if(window._tmr&&VK_PIXEL_ID) window._tmr.push({id:VK_PIXEL_ID,type:'reachGoal',goal:name}); }catch(x){} }
+function vkGoal(name){ try{ window._tmr=window._tmr||[]; if(VK_PIXEL_ID) window._tmr.push({id:VK_PIXEL_ID,type:'reachGoal',goal:name}); }catch(x){} }
 
 /* ============ VK ADS PIXEL (только после согласия на аналитику) ============ */
 var VK_PIXEL_ID='3815100';  /* пиксель «Маяк» в ads.vk.ru; при согласии код в <head> страницы загружает его раньше */
