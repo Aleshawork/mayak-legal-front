@@ -181,6 +181,200 @@ const IMAGES = {
    "0-5-1",
    "0-5-2"
   ]
+ },
+ "kupili-kvartiru-na-40-deshevle": {
+  "cover": "2-1-cover",
+  "cards": [
+   "2-1"
+  ]
+ },
+ "gallagery-edinstvennoe-zhile": {
+  "cover": null,
+  "cards": [
+   "2-2"
+  ]
+ },
+ "effekt-vladeniya-pochemu-prodavcy-zavyshayut-cenu": {
+  "cover": null,
+  "cards": [
+   "2-5"
+  ]
+ },
+ "mif-esli-prodavets-platit-ipoteku-dolgov-net": {
+  "cover": null,
+  "cards": [
+   "2-7"
+  ]
+ },
+ "lannistery-vsegda-platyat-dolgi": {
+  "cover": null,
+  "cards": [
+   "2-8"
+  ]
+ },
+ "kupit-kvartiru-u-dolzhnika": {
+  "cover": null,
+  "cards": [
+   "2-9"
+  ]
+ },
+ "strashilka-dlya-pokupatelya-kvartiry": {
+  "cover": null,
+  "cards": [
+   "2-11-graphic"
+  ]
+ },
+ "den-sudebnogo-pristava-ispolnitelnoe-proizvodstvo": {
+  "cover": null,
+  "cards": [
+   "2-12"
+  ]
+ },
+ "kvartira-kuplena-v-brake-posle-razvoda": {
+  "cover": "3-1-cover",
+  "cards": [
+   "3-1"
+  ]
+ },
+ "bridzhertony-brachnyj-dogovor": {
+  "cover": null,
+  "cards": [
+   "3-2"
+  ]
+ },
+ "mif-neskolko-sobstvennikov": {
+  "cover": null,
+  "cards": [
+   "3-7"
+  ]
+ },
+ "dom-gucchi-soglasie-supruga": {
+  "cover": null,
+  "cards": [
+   "3-8"
+  ]
+ },
+ "pokupka-kvartiry-u-prodavca-85-let": {
+  "cover": null,
+  "cards": [
+   "3-9"
+  ]
+ },
+ "pov-kvartira-kuplena-v-brake": {
+  "cover": null,
+  "cards": [
+   "3-10-1",
+   "3-10-2",
+   "3-10-3",
+   "3-10-4",
+   "3-10-5"
+  ]
+ },
+ "nalog-s-prodazhi-kvartiry-2027": {
+  "cover": null,
+  "cards": [
+   "3-11"
+  ]
+ },
+ "delo-dolinoj-chto-delat-pokupatelyu": {
+  "cover": null,
+  "cards": [
+   "3-12"
+  ]
+ },
+ "darenie-pered-prodazhej-kvartiry": {
+  "cover": "4-1-cover",
+  "cards": [
+   "4-1"
+  ]
+ },
+ "anatomiya-strasti-nasledstvo-i-najm": {
+  "cover": null,
+  "cards": [
+   "4-2"
+  ]
+ },
+ "vymorochnaya-kvartira-komu-dostayotsya": {
+  "cover": null,
+  "cards": [
+   "4-5"
+  ]
+ },
+ "otkaz-ot-privatizacii-pravo-pozovaniya": {
+  "cover": null,
+  "cards": [
+   "4-7"
+  ]
+ },
+ "nasledniki-zaveshchanie-iz-sejfa": {
+  "cover": null,
+  "cards": [
+   "4-8"
+  ]
+ },
+ "pokupka-kvartiry-u-naslednika": {
+  "cover": null,
+  "cards": [
+   "4-9"
+  ]
+ },
+ "objavlen-usmershim-vernulsya-kvartira": {
+  "cover": null,
+  "cards": [
+   "4-10"
+  ]
+ },
+ "isk-naslednicy-posle-pokupki-kvartiry": {
+  "cover": "4-11-cover",
+  "cards": [
+   "4-11"
+  ]
+ },
+ "vypiska-iz-egrn-bez-obremenenij-i-arest": {
+  "cover": "5-1-cover",
+  "cards": [
+   "5-1"
+  ]
+ },
+ "sobache-serdce-kto-vprave-zhit-v-kvartire": {
+  "cover": null,
+  "cards": [
+   "5-5"
+  ]
+ },
+ "mif-vypisku-iz-egrn-dostatochno-zakazat-odin-raz": {
+  "cover": null,
+  "cards": [
+   "5-7"
+  ]
+ },
+ "moriarti-podmena-lichnosti-prodavca": {
+  "cover": null,
+  "cards": [
+   "5-8"
+  ]
+ },
+ "ipotechnaya-kvartira-u-prodavca": {
+  "cover": null,
+  "cards": [
+   "5-9"
+  ]
+ },
+ "pov-obremenenie-v-vypiske-iz-egrn": {
+  "cover": null,
+  "cards": [
+   "5-10-1",
+   "5-10-2",
+   "5-10-3",
+   "5-10-4",
+   "5-10-5"
+  ]
+ },
+ "nalogovyj-vychet-pri-pokupke-kvartiry": {
+  "cover": null,
+  "cards": [
+   "5-11"
+  ]
  }
 }
 function img(name, w, h, alt, eager) {
