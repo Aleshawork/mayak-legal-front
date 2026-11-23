@@ -2813,3 +2813,21 @@ form.ad-run .form-done .adc-h{margin:0;font-size:26px;line-height:1.2;color:var(
 .art-table td{padding:11px 14px;border-top:1px solid var(--hair);color:var(--ink);vertical-align:top}
 .art-table td:first-child{font-weight:600}
 .art-table .yes{color:var(--deep);font-weight:700}
+
+/* Итог пути — не услуга (слово владельца 23.11): цель в конце линии — кремовая карточка, линия входит в неё стрелкой.
+   Линия идёт под карточку и прячется за её непрозрачным фоном, поэтому длину линии считать не нужно. */
+.tl .tl-n.tl-end{position:relative;z-index:1;align-self:start;margin-top:-10px;padding:16px 18px 18px;border-radius:var(--r-md);
+  background:var(--wash);box-shadow:inset 0 0 0 1.5px rgba(242,169,59,.55)}
+.tl .tl-n.tl-end .tl-dot{width:46px;height:46px;font-size:21px;background:var(--deep)!important;color:var(--beam)!important;box-shadow:none!important}
+.tl .tl-n.tl-end .tl-k{margin-top:12px;color:var(--beam2)}
+.tl .tl-n.tl-end .tl-t{margin-bottom:0;color:var(--ink2)}
+.tl .tl-n.tl-end:before{content:"";position:absolute;left:-10px;top:32.5px;width:0;height:0;
+  border-top:7px solid transparent;border-bottom:7px solid transparent;border-left:10px solid var(--beam);
+  opacity:0;transition:opacity .4s var(--ease2,ease) 1.5s}
+.tl.go .tl-n.tl-end:before{opacity:1}
+@media (max-width:980px){
+  .tl .tl-n.tl-end{display:block;margin-top:4px}
+  .tl .tl-n.tl-end:before{left:22.5px;top:-10px;border-left:7px solid transparent;border-right:7px solid transparent;
+    border-top:10px solid var(--beam);border-bottom:0}
+}
+@media (prefers-reduced-motion:reduce){ .tl .tl-n.tl-end:before{transition:none} }
