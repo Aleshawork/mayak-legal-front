@@ -2758,7 +2758,6 @@ dkp: {
       fields: ['topic', 'mail']
     },
 land: {
-      soon: true,   // SOON-LAND (01.11.2026): заказ выключен, кнопки «Скоро»; снять — удалить строку и вернуть кнопки на страницах
       group: 'izhs', name: 'Проверка участка под ИЖС', fullName: 'Проверка земельного участка под ИЖС', price: 2490, priceText: '2 490 ₽', time: 'до 1 календарного дня после получения сведений из реестра (ожидание — не более 3 рабочих дней)',
       short: 'Можно ли строить дом и что этому помешает',
       inc: ['Категория земли и вид разрешённого использования', 'Границы и координаты по данным ЕГРН',
@@ -3121,7 +3120,7 @@ land: {
   /* ---------- калькулятор пакетов для риелторов ---------- */
   var calc = $('#calc');
   if (calc) {
-    C.packs.rows = C.packs.rows.filter(function (r) { return !(C.services[r.id] && C.services[r.id].soon); });  // SOON-LAND
+    C.packs.rows = C.packs.rows.filter(function (r) { return !(C.services[r.id] && C.services[r.id].soon); });  // услуги «Скоро» в пакеты не попадают (SOON-DKP, SOON-BUILDER…)
     var ci = { row: 1, size: 1 };
     var rowsBox = $('#calcRows', calc), sizeBox = $('#calcSizes', calc);
     rowsBox.innerHTML = C.packs.rows.map(function (r, i) { return '<button type="button" class="opt" aria-pressed="' + (i === ci.row) + '" data-i="' + i + '">' + r.name + '</button>'; }).join('');
