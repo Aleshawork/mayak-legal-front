@@ -2131,6 +2131,7 @@ document.addEventListener('click',function(e){
 var METRIKA_ID='113551939';  /* счётчик «Маяк» в metrika.yandex.ru; при согласии код в <head> страницы загружает его раньше */
 function loadMetrika(){
   if(!METRIKA_ID) return;
+  if(/^(anketa|vybor)$/.test((document.body&&document.body.getAttribute('data-page'))||'')) return;  /* 755 § 2: на страницах с ключом дела Метрики нет */
   document.querySelectorAll('input,textarea').forEach(function(el){ el.classList.add('ym-disable-keys'); });
   if(window.ym) return;  /* уже загружена кодом в <head> */
   window.dataLayer=window.dataLayer||[];
@@ -2253,13 +2254,378 @@ document.addEventListener('keydown',function(e){
 
 function flash(then){ if(then) then(); }
 function flashIn(){}
+/* ============ АНКЕТА ПРОВЕРКИ УЧАСТКА (/anketa/) и ВЫБОР ПРИ ЗАДЕРЖКЕ (/vybor/) — наряд 750-Ф ============ */
+/* Ссылки из писем: /anketa/#d=<ключ дела> и /vybor/#d=<ключ дела>[&v=wait|refund]. Ключ — 16–64 знака [0-9a-f].
+   Маршруты — контракт участка (spec/API_участка.md в mayak-dd): POST /api/dd/anketa/open {дело} → {ждёт_анкету, кадастровый_номер, выбор_открыт};
+   POST /api/dd/anketa {дело, анкета: {поле: ответ}} — имена полей Б.1 ПУ-07, значения — таблица контракта; POST /api/dd/egrn-choice {дело, выбор: ждать|возврат}.
+   «Не знаю / не решил / думаю» — null; вопрос без ответа — ключа нет. Вопросы — ПУ-07 от 13.11 (наряд 817-Ф).
+   Ответы — персональные данные (дата брака): уходят только на сервер заказа; черновик — в localStorage этого браузера, после отправки удаляется.
+   Метрики на этих страницах нет (755 § 2). ?mock=anketa и ?mock=vybor — только на localhost. Ссылка выбора сама ничего не выбирает:
+   выбор — кнопкой на странице (почтовые сканеры открывают ссылки сами; 738-П, вопрос 6). */
+var AQ_OB=['garage','bath','shed','second_house','pool','well'];
+var AQ_OB_TYPE={garage:'гараж',bath:'баня',shed:'хозблок',pool:'навес',well:'иное'};
+var AQ_PLAN={yes:'да',no:'нет',maybe:'может быть'};
+var AQ_STAGE={owns:'владеет',buying:'покупает',choosing:'выбирает'};
+var AQ_HEAT={electric:'электрическое',gas:'газовое',other:'иное',undecided:'не решил'};   /* ПУ-07 15.11, решение 818 § 3: «другое» → «иное» */
+var AQ_BASIS={paid:'возмездное',inherit:'наследство',gift:'дар',privat:'приватизация',free_other:'иное безвозмездное'};
+/* Наряд 817-Ф: значения — по таблице контракта участка (spec/API_участка.md). */
+var AQ_CAD=/^\d+(:\d+){3}$/;   /* кадастровый номер строения — цифры через двоеточие (контракт) */
+var AQ_SPLIT={razdel:'раздел',vydel:'выдел',pereraspr:'перераспределение',obyed:'объединение'};
+var AQ_HOUSE={residential:'жилой дом',garden:'садовый дом',unknown:'не решил'};   /* «ещё не решил» (ПУ-07 15.11, решение 818 § 3) → «не решил»; не null */
+/* Ключ дела — во фрагменте (#d=…): фрагмент не уходит ни на сервер, ни в Referer. Страница читает его и сразу
+   убирает из адресной строки (755 § 2). Метрики на этих страницах нет вовсе (loadMetrika их пропускает). */
+/* Чтобы обновление вкладки не теряло ключ, он держится в sessionStorage этой вкладки и снимается после отправки. */
+function aqCaseKey(name){
+  var sp=null, hp=null, SK='mayak-dk-'+name;
+  try{ sp=new URLSearchParams(location.search||''); hp=new URLSearchParams(String(location.hash||'').replace(/^#/,'')); }catch(x){}
+  var d=(hp&&hp.get('d'))||'', v=(hp&&hp.get('v'))||'';
+  try{ if(location.hash||location.search) history.replaceState(null,'',location.pathname); }catch(x){}
+  if(/^[0-9a-f]{16,64}$/.test(d)){ try{ sessionStorage.setItem(SK,d); }catch(x){} }
+  else { d=''; try{ d=sessionStorage.getItem(SK)||''; }catch(x){} if(!/^[0-9a-f]{16,64}$/.test(d)) d=''; }
+  return {d:d, v:v, sp:sp};
+}
+function aqForgetKey(name){ try{ sessionStorage.removeItem('mayak-dk-'+name); }catch(x){} }
+function aqLocalMock(sp,name){ return !!(sp&&sp.get('mock')===name&&/^(localhost|127\.0\.0\.1)$/.test(location.hostname)); }
+function aqLinkBad(er){ return !!(er&&er.status===422&&/дело не найдено|номер дела не похож|только у заказа проверки участка|скоро будет доступна/.test(er.message||'')); }
+
+function initAnketa(){
+  var root=document.getElementById('anketa'); if(!root) return;
+  var k=aqCaseKey('anketa'), mock=aqLocalMock(k.sp,'anketa'), dk=mock?'0123456789abcdef':k.d;
+  var st=function(s){ root.setAttribute('data-state',s); window.scrollTo(0,0); };
+  if(!dk){ st('invalid'); return; }
+  /* Контракт участка, § 2: 200 — ровно {ждёт_анкету, кадастровый_номер, выбор_открыт}; false — анкета уже
+     принята или дело её больше не ждёт → экран «Анкета получена». 404 «ссылка недействительна» — один ответ
+     на все случаи (нет дела, не участок, участок выключен). */
+  var opened=mock?Promise.resolve({'ждёт_анкету':true,'кадастровый_номер':'00:00:0000000:000','выбор_открыт':false})
+                 :apiDD('/api/dd/anketa/open',{'дело':dk});
+  opened.then(function(d){
+    if(!d||typeof d['ждёт_анкету']!=='boolean'){ st('error'); return; }
+    if(!d['ждёт_анкету']){ st('done'); return; }
+    aqSetup(dk,d,mock,st);
+    root.setAttribute('data-state','form');
+  },function(er){
+    st(er&&er.status===404?'invalid':'error');
+  });
+}
+function aqSetup(dk,d,mock,st){
+  var f=document.getElementById('aqForm'), box=document.getElementById('aqBuildings');
+  var btn=document.getElementById('aqSubmit'), miss=document.getElementById('aqMissing'), serr=document.getElementById('aqSendErr');
+  var KEY='mayak-anketa-'+dk, rows=0, timer=null, sending=false, tried=false;
+  document.getElementById('aqKad').value=String(d['кадастровый_номер']||'');
+  var all=function(sel){ return [].slice.call(f.querySelectorAll(sel)); };
+  var rv=function(n){ var e=f.querySelector('input[name="'+n+'"]:checked'); return e?e.value:''; };
+  var cv=function(n){ return all('input[name="'+n+'"]:checked').map(function(e){ return e.value; }); };
+  var tv=function(n){ var e=f.querySelector('[name="'+n+'"]'); return e?String(e.value||'').trim():''; };
+  var nv=function(n){ var s=tv(n).replace(/\s+/g,'').replace(',','.'); if(!/^\d+(\.\d+)?$/.test(s)) return null; return parseFloat(s); };
+  var on=function(n){ return !!f.querySelector('input[name="'+n+'"]:checked'); };
+  var tri=function(v){ return v==='yes'?true:(v==='no'?false:null); };   /* «не знаю» — null */
+  var yn=function(v){ return v==='yes'; };
+  var today=function(){ var t=new Date(); return t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2); };
+  var okDate=function(s){ return /^\d{4}-\d{2}-\d{2}$/.test(s)&&s>='1900-01-01'&&s<=today(); };
+  var yearNow=new Date().getFullYear();
+  var okYear=function(s){ return /^\d{4}$/.test(s)&&+s>=1900&&+s<=yearNow; };
+  /* «дата или год»: ДД.ММ.ГГГГ, ГГГГ-ММ-ДД или ГГГГ → строка-дата или год числом; иначе undefined */
+  var dateOrYear=function(s){
+    if(okYear(s)) return +s;
+    var m=s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/), d=m?m[3]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2):s;
+    if(!okDate(d)) return undefined;
+    var t=new Date(d+'T00:00:00'); return (t.getFullYear()===+d.slice(0,4)&&t.getMonth()+1===+d.slice(5,7)&&t.getDate()===+d.slice(8,10))?d:undefined;
+  };
+  var okMonth=function(s){ return /^\d{4}-(0[1-9]|1[0-2])$/.test(s)&&+s.slice(0,4)>=yearNow-1&&+s.slice(0,4)<=yearNow+50; };
+  var intIn=function(n,lo,hi){ var v=nv(n); return v!==null&&Math.floor(v)===v&&v>=lo&&v<=hi; };
+  var noneAlone=function(n){ var v=cv(n); return !(v.indexOf('none')>=0&&v.length>1); };
+
+  /* ---------- строки списка строений ---------- */
+  function addRow(){
+    var i=rows++, w=document.createElement('div');
+    var ch=function(n,opts){ return '<div class="dd-chips" role="radiogroup">'+opts.map(function(o){
+      return '<label class="dd-chip"><input type="radio" name="b'+i+'_'+n+'" value="'+o[0]+'"><span>'+o[1]+'</span></label>'; }).join('')+'</div>'; };
+    w.className='aq-b'; w.setAttribute('data-row',String(i));
+    w.innerHTML='<button type="button" class="aq-del" aria-label="Убрать строку">×</button>'+
+      '<div class="aq-bgrid">'+
+      '<div class="field"><label>Строение</label><input type="text" name="b'+i+'_kind" maxlength="60"></div>'+
+      '<div class="field"><label>Примерная площадь</label><span class="aq-num"><input type="text" inputmode="decimal" name="b'+i+'_area" maxlength="12"><i>кв. м</i></span></div>'+
+      '</div>'+
+      '<div class="field"><label>Капитальное (на фундаменте)?</label>'+ch('capital',[['yes','да'],['no','нет']])+'</div>'+
+      '<div class="field"><label>Зарегистрировано?</label>'+ch('registered',[['yes','да'],['no','нет'],['unknown','не знаю']])+'</div>'+
+      '<div class="field"><label>Кадастровый номер строения, если знаете</label><input type="text" name="b'+i+'_cad" maxlength="40" placeholder="00:00:0000000:000"></div>'+
+      '<div class="field"><label>Оставляете или сносите?</label>'+ch('fate',[['keep','оставляю'],['demolish','сношу']])+'</div>';
+    box.appendChild(w);
+    return w;
+  }
+  document.getElementById('aqAddRow').addEventListener('click',function(){ addRow(); save(); });
+  box.addEventListener('click',function(e){
+    var x=e.target.closest('.aq-del'); if(!x) return;
+    var r=x.closest('.aq-b'); if(r) r.parentNode.removeChild(r); save();
+  });
+
+  /* ---------- показ по ответам: data-show="имя:значение,значение;имя:значение" — все условия через «;»; «не решил» гасит число ---------- */
+  function shows(){
+    all('[data-show]').forEach(function(el){
+      el.hidden=!el.getAttribute('data-show').split(';').every(function(c){
+        var p=c.split(':'), vals=p[1].split(','), cur=cv(p[0]);
+        return cur.some(function(v){ return vals.indexOf(v)>=0; });
+      });
+    });
+    [['height_undecided','height_m'],['footprint_undecided','footprint_m2'],['power_unknown','needs_power_kw'],
+     ['marriage_date_unknown','marriage_date'],['acq_date_unknown','acq_date']].forEach(function(p){
+      var i=f.querySelector('[name="'+p[1]+'"]'), u=on(p[0]); i.disabled=u; if(u) i.value='';
+    });
+    var und=on('offsets_undecided');
+    ['off_front','off_left','off_right','off_rear'].forEach(function(n){ var i=f.querySelector('[name="'+n+'"]'); i.disabled=und; if(und) i.value=''; });
+  }
+
+  /* ---------- обязательное и проверка чисел ---------- */
+  var NUM=[['total_area_m2','Общая площадь дома',100000],['roof_overhang_m','Свес кровли — до 10 м',10],
+           ['needs_power_kw','Нужная мощность — до 1000 кВт',1000]];
+  function missing(){
+    var m=[];
+    if(!rv('purchase_stage')) m.push(['purchase_stage','Участок уже ваш или вы его покупаете?']);
+    var fl=nv('storeys'); if(fl===null||fl<1||fl>10||Math.floor(fl)!==fl) m.push(['storeys','Сколько этажей — целое число от 1 до 10']);
+    var h=nv('height_m'); if(!on('height_undecided')&&!(h>0&&h<=100)) m.push(['height','Примерная высота — до 100 м, или «не решил»']);
+    var fp=nv('footprint_m2'); if(!on('footprint_undecided')&&!(fp>0&&fp<=100000)) m.push(['footprint','Площадь застройки, или «не решил»']);
+    if(AQ_OB.some(function(k){ return !rv('ob_'+k); })) m.push(['outbuildings','Что ещё на участке — ответ по каждой постройке']);
+    var sb=['off_front','off_left','off_right','off_rear'].every(function(n){ var v=nv(n); return v!==null&&v<=1000; });
+    if(!sb&&!on('offsets_undecided')) m.push(['offsets','Где на участке стоит дом — четыре расстояния или «Пока не решил»']);
+    /* слово владельца 14.11: «есть» без единой строки не отправляется — иначе buildings не уходит и приёмная читает «не ответил» (решение 807) */
+    var exs=rv('existing');
+    if((exs==='yes'||exs==='remains')&&!all('.aq-b').some(function(r){ return tv('b'+r.getAttribute('data-row')+'_kind'); }))
+      m.push(['buildings','Строения на участке — хотя бы одна строка, или ответ «нет»']);
+    NUM.forEach(function(x){ if(tv(x[0])&&!(nv(x[0])!==null&&nv(x[0])<=x[2])) m.push([x[0],x[1]+' — проверьте число']); });
+    all('.aq-b').forEach(function(r){ var i=r.getAttribute('data-row'); if(tv('b'+i+'_cad')&&!AQ_CAD.test(tv('b'+i+'_cad'))) m.push(['b'+i+'_cad','Кадастровый номер строения — цифры через двоеточие']); });
+    all('.aq-b').forEach(function(r){ var i=r.getAttribute('data-row'); if(tv('b'+i+'_area')&&!(nv('b'+i+'_area')!==null&&nv('b'+i+'_area')<=100000)) m.push(['b'+i+'_area','Площадь строения — проверьте число']); });
+    if(rv('married')==='yes'&&tv('marriage_date')&&!okDate(tv('marriage_date'))) m.push(['marriage_date','Дата брака — не позже сегодняшней']);
+    if(tv('acq_date')&&!okDate(tv('acq_date'))) m.push(['acq_date','Когда приобретён участок — не позже сегодняшней']);
+    if(tv('construction_end')&&!okMonth(tv('construction_end'))) m.push(['construction_end','Когда закончить стройку — месяц и год, от прошлого года до 50 лет вперёд']);
+    if(!noneAlone('intent')) m.push(['intent','Разделить участок, дом или продать отдельно — «ничего из этого» без других вариантов']);
+    if(!noneAlone('levels')) m.push(['levels','Подвал, цокольный этаж, мансарда — «ничего из этого» без других вариантов']);
+    if(tv('cellar_slab_m')&&!(nv('cellar_slab_m')!==null&&nv('cellar_slab_m')<=10)) m.push(['cellar_slab_m','Перекрытие цокольного этажа — до 10 м']);
+    if((tv('kitchens')&&!intIn('kitchens',0,20))||(tv('entrances')&&!intIn('entrances',0,20))) m.push(['kitchens','Кухонь и входов — целые числа от 0 до 20']);
+    if(rv('survey')==='yes'&&tv('survey_year')&&!okYear(tv('survey_year'))) m.push(['survey_year','Год выноса границ — от 1900 до нынешнего']);
+    if(rv('geology')==='yes'&&tv('geology_year')&&!okYear(tv('geology_year'))) m.push(['geology_year','Год изысканий — от 1900 до нынешнего']);
+    if(rv('planned_record')==='yes'&&tv('planned_record_date')&&dateOrYear(tv('planned_record_date'))===undefined)
+      m.push(['planned_record_date','Когда пришёл ответ — дата ДД.ММ.ГГГГ или год, не позже сегодняшнего']);
+    return m;
+  }
+  function check(){
+    var m=missing(), keys=m.map(function(x){ return x[0]; });
+    all('.field[data-k]').forEach(function(el){ el.classList.toggle('bad',tried&&keys.indexOf(el.getAttribute('data-k'))>=0); });
+    var ok=!m.length&&!sending;
+    btn.disabled=!ok; btn.classList.toggle('off',!ok); btn.setAttribute('aria-disabled',String(!ok));
+    miss.innerHTML=m.length?('<b>Чтобы отправить, осталось:</b><ul>'+m.map(function(x){
+      return '<li><a href="#" data-go="'+x[0]+'">'+x[1]+'</a></li>'; }).join('')+'</ul>'):'';
+    return ok;
+  }
+  miss.addEventListener('click',function(e){
+    var a=e.target.closest('[data-go]'); if(!a) return; e.preventDefault(); tried=true; check();
+    var g=a.getAttribute('data-go'), el=f.querySelector('.field[data-k="'+g+'"]')||(f.querySelector('[name="'+g+'"]')||{}).parentNode;
+    if(el&&el.scrollIntoView){ el.scrollIntoView({block:'center',behavior:'smooth'}); var i=el.querySelector&&el.querySelector('input:not([readonly])'); if(i) try{ i.focus({preventScroll:true}); }catch(x){} }
+  });
+
+  /* ---------- черновик в браузере ---------- */
+  function snap(){
+    var s={v:2,rows:all('.aq-b').map(function(r){ return r.getAttribute('data-row'); }),f:{}};
+    all('input[name]').forEach(function(e){
+      if(e.readOnly) return;
+      if(e.type==='radio'||e.type==='checkbox'){ if(e.checked)(s.f[e.name]=s.f[e.name]||[]).push(e.value); }
+      else if(e.value) s.f[e.name]=e.value;
+    });
+    return s;
+  }
+  function save(){ shows(); check(); clearTimeout(timer); timer=setTimeout(function(){
+    try{ localStorage.setItem(KEY,JSON.stringify(snap())); }catch(x){} },300); }
+  function restore(){
+    var s=null; try{ s=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(x){}
+    if(!s||s.v!==2||!s.f){ addRow(); return; }
+    var ids=(s.rows&&s.rows.length)?s.rows:['0'], map={}, nf={};
+    ids.forEach(function(old){ map[String(old)]=addRow().getAttribute('data-row'); });
+    Object.keys(s.f).forEach(function(k){ var m=k.match(/^b(\d+)_(.+)$/);
+      if(!m) nf[k]=s.f[k]; else if(map[m[1]]!==undefined) nf['b'+map[m[1]]+'_'+m[2]]=s.f[k]; });
+    Object.keys(nf).forEach(function(n){
+      var v=nf[n];
+      all('[name="'+n+'"]').forEach(function(e){
+        if(e.type==='radio'||e.type==='checkbox') e.checked=Array.isArray(v)&&v.indexOf(e.value)>=0;
+        else if(!e.readOnly) e.value=String(v);
+      });
+    });
+  }
+
+  /* ---------- ответы по полям 738-П ---------- */
+  function answers(){
+    var a={}, put=function(k,v){ if(v!==undefined) a[k]=v; };
+    var R=function(n,map){ var v=rv(n); return v?map(v):undefined; };
+    put('anketa.purchase_stage',R('purchase_stage',function(v){ return AQ_STAGE[v]; }));
+    /* 1. Участок (ПУ-07 13.11, Б.1) */
+    if(okMonth(tv('construction_end'))) a['anketa.construction_end_estimate']=tv('construction_end');
+    put('anketa.application_vri_filed',R('vri_application',tri));
+    put('site.urvi_granted',R('urvi_granted',tri));
+    put('anketa.is_kfh_head',R('kfh_head',yn));
+    var it=cv('intent');
+    if(it.length&&noneAlone('intent')){ a['anketa.intent_divide_plot']=it.indexOf('divide_plot')>=0;
+      a['anketa.intent_divide_building']=it.indexOf('divide_building')>=0; a['anketa.intent_sell_land_separately']=it.indexOf('sell_separately')>=0; }
+    put('anketa.split_kind',R('split_kind',function(v){ return AQ_SPLIT[v]; }));
+    a['anketa.storeys_declared']=nv('storeys');
+    a['anketa.height_declared_m']=on('height_undecided')?null:nv('height_m');
+    a['anketa.footprint_declared_m2']=on('footprint_undecided')?null:nv('footprint_m2');
+    if(nv('total_area_m2')!==null) a['anketa.total_area_m2']=nv('total_area_m2');
+    /* 2. Дом */
+    put('anketa.house_kind',R('house_kind',function(v){ return AQ_HOUSE[v]; }));
+    var lv=cv('levels');
+    if(lv.length&&noneAlone('levels')){ a['anketa.has_basement']=lv.indexOf('basement')>=0;
+      a['anketa.has_cellar']=lv.indexOf('cellar')>=0; a['anketa.has_mansard']=lv.indexOf('mansard')>=0; }
+    if(lv.indexOf('cellar')>=0&&nv('cellar_slab_m')!==null&&nv('cellar_slab_m')<=10) a['anketa.cellar_slab_above_ground_m']=nv('cellar_slab_m');
+    put('anketa.detached',R('detached',yn));
+    if(intIn('kitchens',0,20)) a['anketa.kitchens']=nv('kitchens');
+    if(intIn('entrances',0,20)) a['anketa.separate_entrances']=nv('entrances');
+    put('anketa.nonresidential_premises',R('nonresidential',yn));
+    put('anketa.needs_registration',R('registration',tri));
+    a['anketa.aux_buildings']=AQ_OB.filter(function(k){ return AQ_OB_TYPE[k]; }).map(function(k){
+      return {type:AQ_OB_TYPE[k],planned:AQ_PLAN[rv('ob_'+k)]}; });
+    put('anketa.second_house',R('ob_second_house',function(v){ return v==='maybe'?null:yn(v); }));
+    /* 3. «Раньше дома?» — true, если хотя бы одна постройка раньше дома (Б.1) */
+    var first=AQ_OB.map(function(k){ return rv('ob_'+k+'_first'); }).filter(Boolean);
+    if(first.length) a['anketa.aux_first']=first.indexOf('yes')>=0;
+    put('anketa.fence_and_cabin_only',R('fence_cabin',tri));
+    a['anketa.offsets_planned_m']=on('offsets_undecided')?null:
+      {front:nv('off_front'),side_left:nv('off_left'),side_right:nv('off_right'),rear:nv('off_rear')};
+    if(nv('roof_overhang_m')!==null) a['anketa.roof_overhang_m']=nv('roof_overhang_m');
+    var ex=rv('existing');
+    if(ex==='none') a.buildings=[];
+    else if(ex){
+      var bs=all('.aq-b').map(function(r){ var i=r.getAttribute('data-row'), b={kind:tv('b'+i+'_kind')};
+        if(!b.kind) return null;
+        if(nv('b'+i+'_area')!==null) b.footprint_m2=nv('b'+i+'_area');
+        if(rv('b'+i+'_capital')) b.capital=yn(rv('b'+i+'_capital'));
+        if(rv('b'+i+'_registered')) b.registered=tri(rv('b'+i+'_registered'));
+        if(rv('b'+i+'_fate')) b.to_remain=rv('b'+i+'_fate')==='keep';
+        if(AQ_CAD.test(tv('b'+i+'_cad'))) b.cad_number=tv('b'+i+'_cad');
+        return b; }).filter(Boolean);
+      if(bs.length) a.buildings=bs;
+    }
+    put('site.underground_structures',R('underground',tri));
+    /* 5. Что уже есть на участке */
+    put('site.old_foundation_in_footprint',R('old_foundation',tri));
+    put('survey.performed',R('survey',tri));
+    if(rv('survey')==='yes'&&okYear(tv('survey_year'))) a['survey.date']=+tv('survey_year');
+    put('geo.survey_done',R('geology',yn));
+    if(rv('geology')==='yes'&&okYear(tv('geology_year'))) a['geo.survey_year']=+tv('geology_year');
+    put('reestr.planned_record',R('planned_record',tri));
+    if(rv('planned_record')==='yes'){
+      var prd=tv('planned_record_date')?dateOrYear(tv('planned_record_date')):undefined;
+      if(prd!==undefined) a['reestr.planned_record_date']=prd;
+      /* ответ на уведомление — своего поля нет (контракт): запись в реестре → false, несоответствие → true, не знаю → null */
+      put('reestr.nesootvetstvie',R('planned_record_answer',function(v){ return v==='mismatch'?true:(v==='record'?false:null); }));
+    }
+    var ds=rv('disputes');
+    if(ds){ var dv=function(n){ return ds==='yes'?on(n):(ds==='no'?false:null); };
+      a['disputes.snos_decision']=dv('dis_snos'); a['disputes.prescription']=dv('dis_prescription'); a['disputes.court_case']=dv('dis_court'); }
+    put('utilities.electric_existing',R('electric_existing',tri));
+    if(on('power_unknown')) a['anketa.needs_power_kw']=null; else if(nv('needs_power_kw')!==null) a['anketa.needs_power_kw']=nv('needs_power_kw');
+    put('anketa.heating_type',R('heating_type',function(v){ return AQ_HEAT[v]; }));
+    put('anketa.has_pool',R('has_pool',yn)); put('anketa.has_workshop',R('has_workshop',yn)); put('anketa.has_ev',R('has_ev',yn));
+    var rs=cv('rights'), has=function(k){ return rs.indexOf(k)>=0; };
+    if(has('lease')){
+      /* ПУ-07 от 13.11, Б.1: «ничего не сказано» — своё поле, не false; «не знаю» — оба null */
+      var lb=rv('lease_build');
+      if(lb){ a['docs.lease_allows_building']=lb==='yes'?true:(lb==='no'?false:null);
+              if(lb==='silent') a['docs.lease_building_silent']=true; else if(lb==='unknown') a['docs.lease_building_silent']=null; }
+      put('docs.lease_terminated_after_notice',R('lease_prior',tri));
+      var ps=rv('purchase_stage');   /* переуступка — только при покупке; «выбираю» для правил = «покупаю» */
+      if(ps==='buying'||ps==='choosing'){ put('docs.lease_from_auction',R('lease_auction',tri));
+                                          put('docs.lease_transfer_needs_consent',R('lease_transfer_consent',tri)); } }
+    if(has('free_use')) put('docs.ssuda_allows_building',R('ssuda_build',tri));
+    if(has('pledge')){ put('docs.zakladnaya_exists',R('zakl',tri));
+      if(rv('zakl')==='yes') put('docs.zakladnaya_allows_building',R('zakl_build',tri));
+      put('docs.mortgage_requires_consent',R('mort_consent_req',tri)); put('docs.mortgage_holder_position',R('mort_consent',yn)); }
+    if(has('arrest')){ put('docs.pristav_limits_use',R('pristav',tri)); put('fssp.active_proceedings',R('fssp_open',tri)); }
+    if(has('co_owners')){ put('docs.co_owner_consents_written',R('co_consents',yn)); put('docs.house_ownership_agreement',R('co_house',yn));
+                          put('docs.use_order_agreement',R('co_use',yn)); }
+    if(has('not_registered')){ put('docs.pravoustanavlivayushchiy',R('nr_doc',yn)); put('anketa.inheritance_open_no_certificate',R('nr_inherit',yn)); }
+    if(has('servitude')) put('docs.servitut_coords',R('serv_strip',yn));
+    put('anketa.married',R('married',yn));   /* «не состою» — false, а не отсутствие ключа (контракт, § 3) */
+    if(rv('married')==='yes') a['anketa.marriage_date']=okDate(tv('marriage_date'))?tv('marriage_date'):null;
+    put('anketa.acquisition_basis',R('acq_basis',function(v){ return v==='unknown'?null:AQ_BASIS[v]; }));
+    if(on('acq_date_unknown')) a['anketa.plot_acquired_date']=null; else if(okDate(tv('acq_date'))) a['anketa.plot_acquired_date']=tv('acq_date');
+    put('docs.brachny_dogovor',R('prenup',yn));
+    put('anketa.uses_matkapital',R('matcap',yn));
+    put('anketa.uses_mortgage',R('mortgage',function(v){ return v==='thinking'?null:yn(v); }));
+    put('anketa.uses_escrow',R('escrow',tri));
+    /* 6–7. Проект: индивидуальный → true, типовой → false, не решил → null */
+    put('anketa.individual_project',R('project',function(v){ return v==='individual'?true:(v==='typical'?false:null); }));
+    return a;
+  }
+
+  function done(){ try{ localStorage.removeItem(KEY); }catch(x){} aqForgetKey('anketa'); st('done'); }
+  f.addEventListener('input',save); f.addEventListener('change',save);
+  f.addEventListener('submit',function(e){
+    e.preventDefault(); tried=true; serr.textContent='';
+    if(!check()||sending) return;
+    sending=true; check(); btn.firstChild.nodeValue='Отправляем…';
+    var body={'дело':dk,'анкета':answers()};
+    var sent=mock?new Promise(function(ok){ setTimeout(function(){ ok({'ок':true}); },500); }):apiDD('/api/dd/anketa',body);
+    sent.then(function(){ done(); },function(er){
+      sending=false; btn.firstChild.nodeValue='Отправить';
+      var said=function(){
+        serr.textContent=(er&&(er.status===422||er.status===409)&&er.message)?(er.message.charAt(0).toUpperCase()+er.message.slice(1)+'. Если не получается — напишите на support@mayak-legal.ru.')
+          :'Не удалось отправить анкету. Ответы сохранены в этом браузере — попробуйте ещё раз или напишите на support@mayak-legal.ru.';
+        check(); };
+      /* Контракт, § 3: два разных 409 («уже принята» и «нет согласия») различаются не по тексту —
+         на любой 409 страница переспрашивает anketa/open: ждёт_анкету false — «Анкета получена», иначе текст ошибки. */
+      if(er&&er.status===409){
+        sending=true; check();
+        apiDD('/api/dd/anketa/open',{'дело':dk}).then(function(d){
+          sending=false; if(d&&d['ждёт_анкету']===false) done(); else said();
+        },function(){ sending=false; said(); });
+        return;
+      }
+      if(aqLinkBad(er)){ st('invalid'); return; }
+      said();
+    });
+  });
+  restore(); shows(); check();
+}
+
+/* ---------- выбор при задержке сведений: «Подождать» / «Вернуть деньги» ---------- */
+function initVybor(){
+  var root=document.getElementById('vybor'); if(!root) return;
+  var k=aqCaseKey('vybor'), mock=aqLocalMock(k.sp,'vybor'), dk=mock?'0123456789abcdef':k.d;
+  var st=function(s){ root.setAttribute('data-state',s); window.scrollTo(0,0); };
+  if(!dk){ st('invalid'); return; }
+  var f=document.getElementById('vbForm'), btn=document.getElementById('vbSubmit'), err=document.getElementById('vbErr'), sending=false;
+  var cur=function(){ var e=f.querySelector('input[name="vb"]:checked'); return e?e.value:''; };
+  var pre=k.v; if(pre==='wait'||pre==='refund'){ var p=f.querySelector('input[name="vb"][value="'+pre+'"]'); if(p) p.checked=true; }
+  var check=function(){ var ok=!!cur()&&!sending; btn.disabled=!ok; btn.classList.toggle('off',!ok); btn.setAttribute('aria-disabled',String(!ok)); };
+  f.addEventListener('change',function(){ err.textContent=''; check(); });
+  f.addEventListener('submit',function(e){
+    e.preventDefault(); var v=cur(); if(!v||sending) return;
+    sending=true; check(); err.textContent=''; btn.firstChild.nodeValue='Отправляем…';
+    var choice=v==='wait'?'ждать':'возврат';
+    var sent=mock?new Promise(function(ok){ setTimeout(function(){ ok({'ок':true,'выбор':choice}); },400); })
+                 :apiDD('/api/dd/egrn-choice',{'дело':dk,'выбор':choice});
+    sent.then(function(){
+      document.getElementById('vbDoneT').textContent=v==='wait'?'Выбор принят: подождать.':'Выбор принят: вернуть деньги.';
+      document.getElementById('vbDoneP').textContent=v==='wait'
+        ?'Мы продолжаем запрашивать сведения и пришлём отчёт в течение 1 календарного дня после того, как они придут.'
+        :'Вернём полную стоимость заказа тем же способом, которым вы платили.';
+      aqForgetKey('vybor'); st('done');
+    },function(er){
+      sending=false; btn.firstChild.nodeValue='Подтвердить выбор'; check();
+      if(aqLinkBad(er)){ st('invalid'); return; }
+      err.textContent=(er&&(er.status===409||er.status===422)&&er.message)
+        ?(er.message.charAt(0).toUpperCase()+er.message.slice(1)+'. Если нужна помощь — напишите на support@mayak-legal.ru.')
+        :'Не удалось отправить выбор. Попробуйте ещё раз или напишите на support@mayak-legal.ru.';
+    });
+  });
+  check();
+}
+
 /* ============ РОУТЕР: Vite MPA (slashless) ============ */
 var SVCP={property:1,build:1};
 var URLS={home:'/',about:'/about/',property:'/property/',build:'/build/',
  realtors:'/realtors/',reports:'/reports/',faq:'/faq/',blog:'/blog/',
  contacts:'/contacts/',legal:'/legal/',pay:'/pay/',
  checkout:'/checkout/',success:'/payment/result/',paysuccess:'/payment/success/',payfail:'/payment/fail/',
- unsubscribe:'/unsubscribe/',e404:'/404/'};
+ unsubscribe:'/unsubscribe/',anketa:'/anketa/',vybor:'/vybor/',e404:'/404/'};
 function here(){
   var p=(location.pathname||'/').replace(/\/+$/,'')||'/';
   if(p==='/'||p==='/index.html') return 'home';
@@ -2282,6 +2648,8 @@ function init(id){
   if(id==='success') drawSuccess();
   if(id==='paysuccess'||id==='payfail') drawPayReturn(id);
   if(id==='faq') initFaq();
+  if(id==='anketa') initAnketa();
+  if(id==='vybor') initVybor();
   if(id==='blog') initBlog();
   if(id==='home'){ initSea(); drawPicker(); }
   if(id==='property'||id==='build') initMaps();
