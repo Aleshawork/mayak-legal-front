@@ -550,6 +550,7 @@ document.addEventListener('click',function(e){
   if(!e.target.closest) return;
   if(e.target.closest('#fmNext')){
     showStep(2);
+    if(adRentStop(document.getElementById('mForm'))) return;   /* наряд 156: ссылка аренды уже в поле — текст под ним, дальше не пускаем */
     setTimeout(function(){ var i=document.getElementById('fmFields').querySelector('input,textarea,select'); if(i) i.focus(); },120);
     return;
   }
@@ -1200,6 +1201,14 @@ function isRentUrl(raw){
   if(on('cian.ru')) return p.indexOf('/rent/')===0;
   if(on('domclick.ru')) return p.indexOf('/card/rent__')>=0;
   return false;
+}
+/* Форма бесплатного разбора: своя (formAd) или общее окно, открытое на услуге ad. */
+function adIsAdForm(f){ return !!f&&(f.id==='formAd'||(f.id==='mForm'&&!!pending&&pending.kind==='svc'&&pending.key==='ad')); }
+/* Наряд 156, доводка: аренда проверяется раньше всех остальных проверок формы. true — ссылка аренды, текст показан. */
+function adRentStop(f){
+  var rl=f&&f.querySelector('[name="link"]');
+  if(!adIsAdForm(f)||!rl||!isRentUrl(rl.value)) return false;
+  adRentShow(f); return true;
 }
 /* Текст отказа — под полем ссылки, стилем ошибок формы; поле не очищаем.
    Снимается первой же правкой ссылки (слушатель input в разделе ФОРМЫ). */
@@ -1879,6 +1888,7 @@ function sendForm(f,extra){
 document.addEventListener('submit',function(e){
   var f=e.target.closest('.mk-form'); if(!f) return;
   e.preventDefault();
+  if(adRentStop(f)) return;   /* наряд 156: аренда — первой, до почты и согласий; запроса и карточки нет */
   if(!check(f,true)){
     var bad=f.querySelector('.field.bad input,.field.bad textarea,.field.bad select');
     if(bad) bad.focus();
@@ -1887,11 +1897,10 @@ document.addEventListener('submit',function(e){
   }
   var id=f.id;
   /* Бесплатный разбор объявления: своя цепочка, без заявки и оплаты. */
-  if(id==='formAd'||(id==='mForm'&&pending&&pending.kind==='svc'&&pending.key==='ad')){
+  if(adIsAdForm(f)){
     var adLink=((f.querySelector('[name="link"]')||{}).value||'').trim();
     var adMail=((f.querySelector('[name="email"]')||{}).value||'').trim();
     var adMkt=!!((f.querySelector('input[name="ads"]')||{}).checked);
-    if(isRentUrl(adLink)){ adRentShow(f); return; }   /* наряд 156: аренду не отправляем, карточку не открываем */
     adRun(f,adLink,adMail,false,adMkt);
     return;
   }
@@ -2672,6 +2681,8 @@ function go(id,push){
   flash(function(){ location.href=u; });
 }
 window.go=go;
+/* Наряд 156, доводка: проверка аренды и текст отказа — первому экрану (он в отдельном модуле ниже) */
+window.adRent={is:isRentUrl,text:AD_TXT.rent};
 function init(id){
   if(id==='checkout') drawCheckout();
   if(id==='success') drawSuccess();
@@ -3015,9 +3026,23 @@ land: {
     var trig = document.createElement('button');
     trig.type = 'button'; trig.hidden = true; trig.dataset.form = 'svc'; trig.dataset.svc = 'ad'; trig.dataset.goal = 'hero_ad';
     document.body.appendChild(trig);
+    /* наряд 156, доводка: ссылку аренды первый экран не пускает дальше — текст под полем, окно не открывается */
+    var heroErr = null, adRent = window.adRent || { is: function () { return false; }, text: '' };
+    var heroRent = function (on) {
+      if (on && !heroErr) {
+        heroErr = document.createElement('p'); heroErr.className = 'hero-err'; heroErr.setAttribute('role', 'alert');
+        heroErr.innerHTML = '<b>!</b>'; heroErr.appendChild(document.createTextNode(adRent.text));
+        $('#heroForm').insertAdjacentElement('afterend', heroErr);
+      }
+      if (heroErr) heroErr.hidden = !on;
+      $('#heroForm').classList.toggle('rent', !!on);
+    };
+    $('#heroLink').addEventListener('input', function () { heroRent(false); });
     $('#heroForm').addEventListener('submit', function (e) {
       e.preventDefault();
-      var v = $('#heroLink').value.trim(); trig.click();
+      var v = $('#heroLink').value.trim();
+      if (adRent.is(v)) { heroRent(true); $('#heroLink').focus(); return; }
+      heroRent(false); trig.click();
       if (!v) return;
       var n = 0, t = setInterval(function () {
         var f = $('#mForm [name="link"]');

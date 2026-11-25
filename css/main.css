@@ -2926,3 +2926,8 @@ form.ad-run .form-done .adc-h{margin:0;font-size:26px;line-height:1.2;color:var(
 
 /* Наряд 156: отказ аренде под полем ссылки — свой текст вместо «Вставьте ссылку на объявление» */
 .field:not(.rent) .err-rent,.field.rent .err:not(.err-rent){display:none!important}
+/* Наряд 156, доводка: отказ аренде под полем первого экрана — тем же видом, что ошибки формы */
+.x .hero-err{display:flex;align-items:flex-start;gap:7px;max-width:640px;margin:10px 0 0;padding:0 20px;color:var(--red);font-size:13.5px;font-weight:500;line-height:1.4}
+.x .hero-err[hidden]{display:none}
+.x .hero-err b{flex:none;width:16px;height:16px;margin-top:1px;border-radius:50%;background:var(--red);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.x .hero-form.rent{box-shadow:0 0 0 1.5px var(--red),0 0 0 5px var(--redw)}
