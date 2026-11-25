@@ -2923,3 +2923,6 @@ form.ad-run .form-done .adc-h{margin:0;font-size:26px;line-height:1.2;color:var(
     border-top:10px solid var(--beam);border-bottom:0}
 }
 @media (prefers-reduced-motion:reduce){ .tl .tl-n.tl-end:before{transition:none} }
+
+/* Наряд 156: отказ аренде под полем ссылки — свой текст вместо «Вставьте ссылку на объявление» */
+.field:not(.rent) .err-rent,.field.rent .err:not(.err-rent){display:none!important}

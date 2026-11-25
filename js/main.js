@@ -338,6 +338,7 @@ function check(f,show){
 function refresh(f){ var b=f.querySelector('.submit'); if(b) b.classList.toggle('off',!check(f,false)); }
 document.addEventListener('input',function(e){
   var f=e.target.closest('.mk-form'); if(!f) return;
+  var rw=e.target.closest('.field.rent'); if(rw) rw.classList.remove('rent','bad');   /* наряд 156: ссылку поменяли — отказ аренде снят */
   var w=e.target.closest('.field.bad'); if(w&&filled(e.target)) w.classList.remove('bad');
   refresh(f);
 });
@@ -1172,7 +1173,8 @@ var AD_TXT={
   busy:'Не удалось отправить ссылку, попробуйте через минуту',
   lost:'Заявка не найдена. Отправьте ссылку на объявление заново.',
   slow:'Разбор занимает больше обычного. Попробуйте обновить страницу через несколько минут или пришлите ссылку ещё раз.',
-  wait:'Читаем объявление и фотографии'
+  wait:'Читаем объявление и фотографии',
+  rent:'Мы проверяем только объявления о продаже. Это объявление об аренде — пришлите ссылку на продажу.'
 };
 function adHost(raw){
   try{
@@ -1187,6 +1189,28 @@ function adSupported(raw){
     if(h===AD_HOSTS[i]||h.slice(-(AD_HOSTS[i].length+1))==='.'+AD_HOSTS[i]) return true;
   }
   return false;
+}
+/* Наряд 156: у Циана и Домклика аренда видна в самой ссылке — такую ссылку в /api/listing
+   не отправляем. Авито и Яндекс тип сделки в ссылке не показывают: их отсекает сервер
+   (ответ 400 rent_listing, см. adError). Неразборчивая ссылка — false: её проверит сервер. */
+function isRentUrl(raw){
+  var u; try{ u=new URL(String(raw).trim()); }catch(x){ return false; }
+  var h=u.hostname.toLowerCase(), p=u.pathname.toLowerCase();
+  function on(d){ return h===d||h.slice(-(d.length+1))==='.'+d; }
+  if(on('cian.ru')) return p.indexOf('/rent/')===0;
+  if(on('domclick.ru')) return p.indexOf('/card/rent__')>=0;
+  return false;
+}
+/* Текст отказа — под полем ссылки, стилем ошибок формы; поле не очищаем.
+   Снимается первой же правкой ссылки (слушатель input в разделе ФОРМЫ). */
+function adRentShow(f){
+  var inp=f.querySelector('[name="link"]'), w=inp&&inp.closest('.field'); if(!w) return;
+  var e=w.querySelector('.err-rent');
+  if(!e){
+    e=document.createElement('span'); e.className='err err-rent'; e.setAttribute('aria-live','polite');
+    e.innerHTML='<b>!</b>'; e.appendChild(document.createTextNode(AD_TXT.rent)); w.appendChild(e);
+  }
+  w.classList.add('bad','rent'); inp.focus();
 }
 /* Ответ нужен целиком: у кода 429 два разных смысла — дневной лимит клиента и
    общий лимит сервиса, — и различить их можно только по телу. */
@@ -1209,6 +1233,7 @@ function adError(res){
   var d=res.data||{};
   if(res.status===429) return (d.error==='daily_limit'&&d.message)?d.message:AD_TXT.often;
   if(d.error==='host_not_allowed') return AD_TXT.badHost;
+  if(d.error==='rent_listing') return AD_TXT.rent;   /* наряд 156: задел под серверный отказ аренде */
   if(d.error==='bad_url') return AD_TXT.badUrl;
   if(d.error==='bad_email') return AD_TXT.badEmail;
   return d.message||AD_TXT.net;
@@ -1866,6 +1891,7 @@ document.addEventListener('submit',function(e){
     var adLink=((f.querySelector('[name="link"]')||{}).value||'').trim();
     var adMail=((f.querySelector('[name="email"]')||{}).value||'').trim();
     var adMkt=!!((f.querySelector('input[name="ads"]')||{}).checked);
+    if(isRentUrl(adLink)){ adRentShow(f); return; }   /* наряд 156: аренду не отправляем, карточку не открываем */
     adRun(f,adLink,adMail,false,adMkt);
     return;
   }
