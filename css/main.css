@@ -2937,3 +2937,16 @@ li.inc-plus{list-style:none!important;margin:10px 0 4px!important;padding:8px 0 
 .fm-in li.inc-plus{margin-left:-18px!important}
 li.inc-plus:before,li.inc-plus i{display:none!important}
 li.inc-all span{font-weight:600}
+
+/* ===== Услуга 4 «Проверка вашей выписки»: исход опознания и карточка ===== */
+.own-res{margin-top:10px;padding:12px 14px;border-radius:12px;font-size:14.5px;line-height:1.55}
+.own-res p+p{margin-top:6px}
+.own-res.ok{background:var(--grnw);color:#164C36}
+.own-res.warn{background:var(--yelw);color:#7A5410}
+.own-res.bad{background:var(--redw);color:#8E2E24}
+.own-res .own-pay{font-weight:600}
+dd.own-ok{color:#164C36}
+dd.own-warn{color:#7A5410}
+dd.own-bad{color:#8E2E24}
+.own-card{margin-top:16px;padding:14px 16px;border-radius:14px;box-shadow:inset 0 0 0 1px var(--hair)}
+.own-card .meta{margin:8px 0 10px}
