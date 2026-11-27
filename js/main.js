@@ -2061,6 +2061,8 @@ document.addEventListener('submit',function(e){
           var oi=f.querySelector('[name="own"]'), of=oi&&oi.files&&oi.files[0];
           if(!of) throw new Error(OWN_T3);
           var st0=ownState;
+          if(st0.timer){ clearTimeout(st0.timer); st0.timer=null; }   /* новая загрузка — отсчёт прежнего исхода снят */
+          st0.ready=false;
           started=ownUpload(st0.caseId,of,setBusy).then(function(cm){ return {caseId:st0.caseId,consent:st0.consent,own:ownOutcome(cm)}; });
         } else started=ddCreateCase(f,pending.key,setBusy);
       }
@@ -2074,18 +2076,20 @@ document.addEventListener('submit',function(e){
           setBusy(false);
           var rb=f.querySelector('#ownRes'); if(rb) rb.scrollIntoView({block:'center',behavior:REDUCE?'auto':'smooth'});
           if(!r.own.open) return;
-          if(r.own.code==='годна'){   /* Т4 — в форме, затем переход сам */
+          /* кнопка «Оплатить» — при каждом исходе, открывающем оплату: и у Т4, и у Т9 (1037, § 4а, п. 2) */
+          if(rb){ rb.insertAdjacentHTML('beforeend','<button class="btn b-amber b-sm own-go" type="button">Оплатить'+ARR+'</button>');
+            rb.querySelector('.own-go').addEventListener('click',function(){
+              if(!(ownState&&ownState.ready&&ownState.own&&ownState.own.open)) return;
+              if(ownState.timer){ clearTimeout(ownState.timer); ownState.timer=null; }
+              proceed(r.caseId,r.consent,r.own); }); }
+          /* «годна» — ещё и сам переход через OWN_GO_MS, без текста об отсчёте (п. 3); «давняя» — только кнопка */
+          if(r.own.code==='годна'){
             var tk=setTimeout(function(){
               var fm=document.getElementById('formModal');
               if(ownState&&ownState.timer===tk&&ownState.ready&&fm&&fm.classList.contains('on')) proceed(r.caseId,r.consent,r.own);
             },OWN_GO_MS);
             if(ownState) ownState.timer=tk;
-            return;
           }
-          /* «давняя» и прочие открывающие оплату: без автоперехода — исход и кнопка «Оплатить» */
-          if(rb){ rb.insertAdjacentHTML('beforeend','<button class="btn b-amber b-sm own-go" type="button">Оплатить'+ARR+'</button>');
-            rb.querySelector('.own-go').addEventListener('click',function(){
-              if(ownState&&ownState.ready&&ownState.own&&ownState.own.open) proceed(r.caseId,r.consent,r.own); }); }
           return;
         }
         proceed(r.caseId,r.consent,null);
