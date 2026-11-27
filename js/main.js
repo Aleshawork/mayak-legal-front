@@ -736,7 +736,15 @@ var OWN_T2='Подойдёт электронная выписка из ЕГРН
 var OWN_T3='Загрузите выписку ЕГРН об объекте. Мы сразу скажем, подходит ли она.';
 var OWN_T11='Чтобы оплатить, загрузите выписку об объекте, которая подходит';
 var OWN_TONE={'годна':'ok','давняя':'warn'};   /* остальные коды — красный */
-var ownState=null;   /* {caseId, consent} дела этой формы: повторная загрузка идёт в то же дело */
+var ownState=null;   /* {caseId, consent, ready, own, timer} дела этой формы: повторная загрузка идёт в то же дело */
+var OWN_GO_MS=3000;   /* «годна»: Т4 видна в форме до перехода к оплате (решение 1037, п. 1) */
+/* Другой файл после исхода — исход прежнего уже не действует: оплата снова закрыта до новой загрузки. */
+document.addEventListener('change',function(e){
+  var t=e.target; if(!t||t.name!=='own'||!ownState) return;
+  ownState.ready=false; ownState.own=null;
+  if(ownState.timer){ clearTimeout(ownState.timer); ownState.timer=null; }
+  var b=document.getElementById('ownRes'); if(b){ b.hidden=true; b.innerHTML=''; }
+});
 var DD_DOCS_SKU='obj-full';               /* документы клиента принимаются только в расширенной */
 var DD_PD_REV='политика-2026-11-07';     /* редакция Политики из закрытого перечня бэка (spec/редакции.json); страница /privacy/ — от 7 ноября 2026 (754, §§ 2–3) */
 var DD_OFFER_REV='оферта-2026-11-06';    /* редакция оферты, которую клиент открывает из формы */
@@ -2030,6 +2038,22 @@ document.addEventListener('submit',function(e){
         else btn.innerHTML=prevHtml;
       };
       order.way='на электронную почту';
+      var proceed=function(caseId,consent,own){
+        order.case_id=caseId; order.dd=true;
+        order.consent=consent&&consent['время']||null;
+        if(own){ order.own_ok=own.open; order.own_text=own.text; order.own_code=own.code; }
+        saveOrder();
+        setBusy(false);
+        goal('order_paid_start');
+        vkGoal('lead');
+        closeModal();
+        go('checkout',true);
+      };
+      /* выписка уже принята, файл не меняли: к оплате без новой загрузки */
+      if(pending.key===OWN_SKU&&ownState&&ownState.ready&&ownState.own&&ownState.own.open){
+        if(ownState.timer){ clearTimeout(ownState.timer); ownState.timer=null; }
+        proceed(ownState.caseId,ownState.consent,ownState.own); return;
+      }
       var started;
       try{
         /* повторная загрузка выписки — в то же дело: последний файл заменяет прежний */
@@ -2043,18 +2067,28 @@ document.addEventListener('submit',function(e){
       catch(err){ alert(err.message); return; }
       started.then(function(r){
         if(r.own){
+          /* оплата — только по «оплата_открыта» последнего commit (решение 1037, п. 1) */
           ownShow(f,r.own);
-          order.own_ok=r.own.open; order.own_text=r.own.text; order.own_code=r.own.code;
-          if(!r.own.open){ setBusy(false); saveOrder(); var rb=f.querySelector('#ownRes'); if(rb) rb.scrollIntoView({block:'center',behavior:REDUCE?'auto':'smooth'}); return; }
+          order.own_ok=r.own.open; order.own_text=r.own.text; order.own_code=r.own.code; saveOrder();
+          if(ownState){ ownState.ready=r.own.open; ownState.own=r.own; }
+          setBusy(false);
+          var rb=f.querySelector('#ownRes'); if(rb) rb.scrollIntoView({block:'center',behavior:REDUCE?'auto':'smooth'});
+          if(!r.own.open) return;
+          if(r.own.code==='годна'){   /* Т4 — в форме, затем переход сам */
+            var tk=setTimeout(function(){
+              var fm=document.getElementById('formModal');
+              if(ownState&&ownState.timer===tk&&ownState.ready&&fm&&fm.classList.contains('on')) proceed(r.caseId,r.consent,r.own);
+            },OWN_GO_MS);
+            if(ownState) ownState.timer=tk;
+            return;
+          }
+          /* «давняя» и прочие открывающие оплату: без автоперехода — исход и кнопка «Оплатить» */
+          if(rb){ rb.insertAdjacentHTML('beforeend','<button class="btn b-amber b-sm own-go" type="button">Оплатить'+ARR+'</button>');
+            rb.querySelector('.own-go').addEventListener('click',function(){
+              if(ownState&&ownState.ready&&ownState.own&&ownState.own.open) proceed(r.caseId,r.consent,r.own); }); }
+          return;
         }
-        order.case_id=r.caseId; order.dd=true;
-        order.consent=r.consent&&r.consent['время']||null;
-        saveOrder();
-        setBusy(false);
-        goal('order_paid_start');
-        vkGoal('lead');
-        closeModal();
-        go('checkout',true);
+        proceed(r.caseId,r.consent,null);
       }).catch(function(err){
         setBusy(false);
         /* «Не найдено в ЕГРН» — не окном браузера, а сообщением у поля (решение 716) */

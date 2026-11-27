@@ -2945,6 +2945,7 @@ li.inc-all span{font-weight:600}
 .own-res.warn{background:var(--yelw);color:#7A5410}
 .own-res.bad{background:var(--redw);color:#8E2E24}
 .own-res .own-pay{font-weight:600}
+.own-res .own-go{margin-top:10px}
 dd.own-ok{color:#164C36}
 dd.own-warn{color:#7A5410}
 dd.own-bad{color:#8E2E24}
